@@ -27,7 +27,7 @@ Then load it into your open Claude Code session:
 
 Or start a new session, in the terminal or in VS Code.
 
-To get a new version, run `claude plugin update cost-info@falconsw-mods`, then `/reload-plugins`. To remove it, run `claude plugin uninstall cost-info@falconsw-mods`.
+To get a new version, run `claude plugin update cost-info@falconsw-mods`, then `/reload-plugins`. If it says it's already at the latest version, run `claude plugin marketplace update falconsw-mods` first. To remove it, run `claude plugin uninstall cost-info@falconsw-mods`.
 
 ## Configure
 
