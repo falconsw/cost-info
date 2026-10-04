@@ -46,9 +46,9 @@ const tok = (n: number): string =>
 const tokensOf = (u: ModelUsage): number =>
   u.input_tokens + u.output_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
 
-// The session's cost and tokens, and the budget where one is shown.
+// The session's cost and tokens behind its mark, and the budget where one is shown.
 const sessionOf = (m: Totals, budget = 0): Piece[] => [
-  { text: 'session ' },
+  { text: '◉ ' },
   { text: money(m.total), isFigure: true },
   ...(m.tokens > 0 ? [{ text: ' · ' }, { text: tok(m.tokens), isFigure: true }] : []),
   ...(budget > 0 ? [{ text: ` of ${money(budget)} budget` }] : []),

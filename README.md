@@ -2,7 +2,7 @@
 
 A Claude Code mod that shows what your session has cost so far, and the tokens it took, live.
 
-- **Under the prompt.** `session $0.16 · 142k tok | this turn $0.02 · 30k tok` at the right of the line under the prompt, the figures in green, live, mid-turn too; once the turn ends it reads `last turn`. A narrow terminal (under 120 columns) shows the session alone. The cost is the same figure `/cost` shows, subagents included.
+- **Under the prompt.** `◉ $0.16 · 142k tok | this turn $0.02 · 30k tok` at the right of the line under the prompt, the figures in green, live, mid-turn too; once the turn ends it reads `last turn`. A narrow terminal (under 120 columns) shows the session alone. The cost is the same figure `/cost` shows, subagents included.
 - **Tokens.** Every model request's input, cache writes, cache reads and output, summed, subagents included.
 - **Budget.** A one-time warning when the session crosses it.
 - **`/spend`.** Tokens, turns, average per turn, your priciest turn, and how much of the budget is used.
