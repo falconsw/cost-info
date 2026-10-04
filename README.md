@@ -2,7 +2,7 @@
 
 A Claude Code mod that shows what your session has cost so far, and the tokens it took, live.
 
-![Cost Info at the right of the line under the Claude Code prompt: ◉ 5h %37 ⏱ 3h 20m | 7d %12 ⏱ 6d · 128k tkn | last turn 31k tkn](docs/screenshot.svg)
+![Cost Info at the right of the line under the Claude Code prompt: ◉ 5h ━━━───── 37%  wk ━─────── 12%  Resets in 3h 20m · 128k tkn | last turn 31k tkn](docs/screenshot.svg)
 
 - **Under the prompt.** `◉ $0.16 · 142k tkn | this turn $0.02 · 30k tkn` at the right of the line under the prompt, the figures in green, live, mid-turn too; once the turn ends it reads `last turn`. A narrow terminal (under 120 columns) shows the session alone. The cost is the same figure `/cost` shows, subagents included.
 - **Tokens.** Every model request's input, cache writes, cache reads and output, summed, subagents included.
@@ -10,7 +10,7 @@ A Claude Code mod that shows what your session has cost so far, and the tokens i
 - **`/spend`.** Tokens, turns, average per turn, your priciest turn, and how much of the budget is used.
 - **VS Code.** The extension doesn't draw that line, so there the meter opens as a **Cost** pane. Run `/spend` to bring it back if you close it.
 
-On a Pro or Max plan the dollars aren't what you're billed, so when Claude Code reports rate limits the meter shows how much of each is used instead: `◉ 5h %37 ⏱ 3h 20m | 7d %12 ⏱ 6d · 128k tkn` (the 5-hour and weekly windows, with the time until each resets). It reads what Claude Code already receives, so it costs nothing extra. Without rate limits (API billing) it shows cost as before. Tokens count from when the mod loaded into the session, so a resumed session's earlier tokens aren't in the total.
+On a Pro or Max plan the dollars aren't what you're billed, so when Claude Code reports rate limits the meter shows how much of each is used instead: `◉ 5h ━━━───── 37%  wk ━─────── 12%  Resets in 3h 20m · 128k tkn`: a thin gauge for the 5-hour and weekly windows, and the time until the sooner one resets. It reads what Claude Code already receives, so it costs nothing extra. Without rate limits (API billing) it shows cost as before. Tokens count from when the mod loaded into the session, so a resumed session's earlier tokens aren't in the total.
 
 ## Install
 
