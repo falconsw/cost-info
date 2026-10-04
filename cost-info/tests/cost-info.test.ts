@@ -265,9 +265,6 @@ describe('cost-info', () => {
     expect(run.text).toContain('5h')
     expect(run.text).toContain('37% used (resets in 3h')
     expect(run.text).not.toContain('$')
-
-    const raw = await $.command.run({ command: 'spend', args: 'raw' } as any)
-    expect(raw.text).toContain('"type":"five_hour"')
     await ui.unmount()
   })
 })

@@ -197,19 +197,20 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  on('command.run', { command: COMMAND }, async ($, e) => {
-    if (String((e as { args?: string }).args ?? '').trim() === 'raw') {
-      // What the host reports, unparsed: for finding out why no limits show.
-      const u = await $.session.usage()
-
-      return { text: `usage keys: ${Object.keys(u).join(', ')}\nrateLimits: ${JSON.stringify(u.rateLimits)}` }
-    }
+  on('command.run', { command: COMMAND }, async $ => {
     const m = await read($, meter)
     if ((await $.session.surfaces()).includes('vscode')) {
       await $.ui.open({ id: PANE, title: TITLE }) // asked for, so it is placed at any width
     }
 
-    return { text: report(m, budget) }
+    const text = report(m, budget)
+    if (m.limits.length > 0) {
+      return { text }
+    }
+    // No limits parsed: show what the host reports, unparsed, to find out why.
+    const u = await $.session.usage()
+
+    return { text: `${text}\n\n(no plan limits) usage keys: ${Object.keys(u).join(', ')}\nrateLimits: ${JSON.stringify(u.rateLimits)}` }
   })
 
   // Under the prompt, left of the engine's own mode labels, which stay as the engine drew them.
