@@ -1,3 +1,5 @@
+export type Limit = { label: string; percent: number; resetsAt: number | null }
+
 export type Totals = {
   session: number | null
   total: number
@@ -10,6 +12,7 @@ export type Totals = {
   tokens: number
   turnTokens: number
   isWorking: boolean
+  limits: Limit[]
 }
 
 declare module 'claude-code' {
