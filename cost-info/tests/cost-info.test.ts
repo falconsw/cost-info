@@ -245,4 +245,26 @@ describe('cost-info', () => {
     expect(run.text).toContain('Tokens        12k tok')
     await ui.unmount()
   })
+  test('on a plan with rate limits the footer shows the used share instead of dollars', async ($, on) => {
+    const resetsAt = Math.floor(Date.now() / 1000) + 3 * 3600
+    const limits = [
+      { type: 'five_hour', usedPercentage: 37, resetsAt },
+      { type: 'seven_day', utilization: 0.12, resetsAt: resetsAt + 86400 },
+    ]
+
+    engine(on)
+    on('session.usage', () => ({ value: { startedAt: 0, rateLimits: limits, context: { tokens: 1, window: 200000, percent: 0 }, cost: { usd: 0.5 } } }))
+    on('session.surfaces', () => ({ value: ['terminal'] }))
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
+    expect(await shown(ui, 'meter')).toBe('◉ 5h 37% · 7d 12%')
+    expect((await ui.find({ type: 'Text', text: '37%' }))?.props.color).toBe('green')
+
+    const run = await $.command.run({ command: 'spend', args: '' } as any)
+    expect(run.text).toContain('5h')
+    expect(run.text).toContain('37% used (resets in 3h')
+    expect(run.text).not.toContain('$')
+    await ui.unmount()
+  })
 })
