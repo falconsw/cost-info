@@ -43,7 +43,7 @@ type Piece = { text: string; isFigure?: boolean }
 const money = (usd: number): string => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`
 
 const tok = (n: number): string =>
-  n < 1000 ? `${n} tok` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tok` : `${(n / 1_000_000).toFixed(2)}M tok`
+  n < 1000 ? `${n} tkn` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tkn` : `${(n / 1_000_000).toFixed(2)}M tkn`
 
 // A plan's rate-limit window, read from whatever shape the host reports it in. Plans that have
 // none (API billing) report an empty list, which is how the meter knows to show cost instead.
