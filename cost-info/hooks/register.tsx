@@ -130,7 +130,7 @@ const limitsPieces = (limits: Limit[]): Piece[] => {
 const sessionOf = (m: Totals, budget = 0): Piece[] => [
   { text: '◉ ' },
   ...(m.limits.length > 0 ? limitsPieces(m.limits) : [{ text: money(m.total), isFigure: true }]),
-  ...(m.tokens > 0 ? [{ text: ' · ' }, { text: tok(m.tokens), isFigure: true }] : []),
+  ...(m.tokens > 0 ? [{ text: ' | ' }, { text: tok(m.tokens), isFigure: true }] : []),
   ...(budget > 0 && m.limits.length === 0 ? [{ text: ` of ${money(budget)} budget` }] : []),
 ]
 
@@ -146,7 +146,7 @@ const turnOf = (m: Totals, withCount = false): Piece[] | null => {
   return [
     { text: m.isWorking ? 'this turn ' : 'last turn ' },
     ...(isPlan ? [] : [{ text: money(cost), isFigure: true }]),
-    ...(m.turnTokens > 0 ? [...(isPlan ? [] : [{ text: ' · ' }]), { text: tok(m.turnTokens), isFigure: true }] : []),
+    ...(m.turnTokens > 0 ? [...(isPlan ? [] : [{ text: ' | ' }]), { text: tok(m.turnTokens), isFigure: true }] : []),
     ...(withCount && !m.isWorking ? [{ text: ` · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}` }] : []),
   ]
 }
