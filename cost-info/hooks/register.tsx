@@ -203,7 +203,14 @@ export const register: Register = (on, options) => {
       await $.ui.open({ id: PANE, title: TITLE }) // asked for, so it is placed at any width
     }
 
-    return { text: report(m, budget) }
+    const text = report(m, budget)
+    if (m.limits.length > 0) {
+      return { text }
+    }
+    // No limits parsed: show what the host reports, unparsed, to find out why.
+    const u = await $.session.usage()
+
+    return { text: `${text}\n\n(no plan limits) usage keys: ${Object.keys(u).join(', ')}\nrateLimits: ${JSON.stringify(u.rateLimits)}` }
   })
 
   // Under the prompt, left of the engine's own mode labels, which stay as the engine drew them.
