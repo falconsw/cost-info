@@ -98,7 +98,7 @@ const left = (resetsAt: number | null, now = Date.now()): string => {
 const tokensOf = (u: ModelUsage): number =>
   u.input_tokens + u.output_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
 
-const BAR = 8
+const BAR = 4
 
 // A thin gauge: the used share filled (at least a dot once anything is used), the rest a track.
 // It turns yellow from 70% and red from 90%.
@@ -127,9 +127,9 @@ const limitsPieces = (limits: Limit[]): Piece[] => {
   ]
 }
 
-// Tokens used: the session's total, then the running or last turn's, as `104k / 70k tok`.
+// Tokens used: the session's total, then the running or last turn's, as `Token Usage 104k / 70k`.
 const usageOf = (m: Totals, withLast: boolean): string =>
-  withLast && m.turnTokens > 0 ? `${count(m.tokens)} / ${count(m.turnTokens)} tok` : tok(m.tokens)
+  `Token Usage ${count(m.tokens)}${withLast && m.turnTokens > 0 ? ` / ${count(m.turnTokens)}` : ''}`
 
 // The session's cost and tokens behind its mark, and the budget where one is shown.
 // On a plan with rate limits the dollars mean nothing, so the limits' used share stands in for them.
