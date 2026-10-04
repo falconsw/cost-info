@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="300" viewBox="0 0 960 300" role="img" aria-label="Claude Code in a macOS terminal, with Cost Info under the prompt: ◉ $0.42 · 128k tok | last turn $0.08 · 31k tok">
+  <title>Cost Info under the Claude Code prompt</title>
+  <defs>
+    <filter id="shadow" x="-5%" y="-10%" width="110%" height="135%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <clipPath id="window">
+      <rect x="20" y="14" width="920" height="246" rx="10"/>
+    </clipPath>
+  </defs>
+
+  <rect x="20" y="14" width="920" height="246" rx="10" fill="#1d1e25" filter="url(#shadow)"/>
+
+  <g clip-path="url(#window)" font-family="'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace" font-size="14">
+    <!-- Title bar -->
+    <rect x="20" y="14" width="920" height="32" fill="#2b2c34"/>
+    <line x1="20" y1="46.5" x2="940" y2="46.5" stroke="#000" stroke-opacity="0.45"/>
+    <circle cx="40" cy="30" r="6" fill="#ff5f57"/>
+    <circle cx="60" cy="30" r="6" fill="#febc2e"/>
+    <circle cx="80" cy="30" r="6" fill="#28c840"/>
+    <text x="480" y="34.5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#9a9ca6">app — claude — 120×32</text>
+
+    <!-- The last exchange -->
+    <rect x="20" y="58" width="920" height="26" fill="#2a2c35"/>
+    <text x="36" y="76" fill="#e8e8ea"><tspan fill="#8b8e98">❯</tspan> refactor the retry logic in api/client.ts</text>
+    <text x="36" y="110" fill="#e8e8ea">● Moved the backoff into a withRetry() helper and added two tests. All 14 pass.</text>
+    <text x="36" y="138" fill="#8b8e98">✻ Worked for 38s · done 12:41 pm</text>
+
+    <!-- The prompt -->
+    <line x1="36" y1="162.5" x2="924" y2="162.5" stroke="#4a4c57"/>
+    <text x="36" y="187" fill="#e8e8ea">❯</text>
+    <rect x="54" y="174" width="9" height="18" fill="#e8e8ea"/>
+    <line x1="36" y1="203.5" x2="924" y2="203.5" stroke="#4a4c57"/>
+
+    <!-- The line under the prompt: the engine's hint, and Cost Info at its right -->
+    <text x="36" y="232" fill="#8b8e98"><tspan fill="#f0a830">▸▸ auto mode on</tspan> (shift+tab to cycle) · ← for agents</text>
+    <text x="924" y="232" text-anchor="end" fill="#e8e8ea">◉ <tspan fill="#4fc76a">$0.42</tspan> · <tspan fill="#4fc76a">128k tok</tspan> | last turn <tspan fill="#4fc76a">$0.08</tspan> · <tspan fill="#4fc76a">31k tok</tspan></text>
+  </g>
+</svg>
