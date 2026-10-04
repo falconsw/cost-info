@@ -108,7 +108,7 @@ const sessionOf = (m: Totals, budget = 0): Piece[] => [
           ...(i > 0 ? [{ text: ' | ' }] : []),
           { text: `${l.label} ` },
           { text: `%${l.percent}`, isFigure: true },
-          ...(reset === '' ? [] : [{ text: ` ↻${reset}` }]),
+          ...(reset === '' ? [] : [{ text: ` ⏱ ${reset}` }]),
         ]
       })
     : [{ text: money(m.total), isFigure: true }]),
