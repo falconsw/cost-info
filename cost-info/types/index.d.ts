@@ -6,6 +6,9 @@ export type Totals = {
   turns: number
   priciest: number
   warned: boolean
+  tokens: number
+  turnTokens: number
+  isWorking: boolean
 }
 
 declare module 'claude-code' {

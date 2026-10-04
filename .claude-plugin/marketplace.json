@@ -8,7 +8,7 @@
     {
       "name": "cost-info",
       "source": "./cost-info",
-      "description": "What this session has cost so far, live."
+      "description": "What this session has cost so far, and the tokens it took, live."
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import type { ModelUsage, On } from 'claude-code'
 
 const usage = (usd: number) => ({
   value: { startedAt: 0, rateLimits: [], context: { tokens: 1, window: 200000, percent: 0 }, cost: { usd } },
@@ -10,6 +10,7 @@ const engine = (on: On) => {
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('session.attach', ($, e) => ({ clientId: e.clientId }))
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('ui.render', ($, e) => $.ui.resolve(e).Box({ children: [] }))
@@ -20,6 +21,22 @@ const measure = (usd: number) => ({
   rateLimits: [],
   cost: { usd },
   changed: ['cost' as const],
+})
+
+// Runs one model request through the chain and waits for its response.
+const step = async ($: any, input: { turnId: string; index: number; agentId?: string }) => {
+  const stream = $.turn.step({ model: 'claude-opus-5-5', messageCount: 1, ...input })
+  for await (const _ of stream) {
+  }
+
+  return stream.result
+}
+
+const tokens = (input: number, output: number, read = 0, write = 0): ModelUsage => ({
+  input_tokens: input,
+  output_tokens: output,
+  cache_read_input_tokens: read,
+  cache_creation_input_tokens: write,
 })
 
 const BAND = {
@@ -146,5 +163,49 @@ describe('cost-info', () => {
     expect(run.text).toContain('Turns         1')
     expect(opened).toEqual(['cost-info', 'cost-info'])
     await pane.unmount()
+  })
+
+  test('counts the tokens of the running turn and of the whole session', async ($, on) => {
+    let usd = 0
+    let status: string | undefined
+    const responses: (ModelUsage | null)[] = [tokens(500, 1000, 8000, 500), tokens(1500, 500), null]
+
+    engine(on)
+    on('ui.status', ($, e) => {
+      status = e.text
+
+      return { value: undefined }
+    })
+    on('session.usage', () => usage(usd))
+    on('session.surfaces', () => ({ value: ['terminal'] }))
+    on('turn.step', async function* ($, e) {
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: responses.shift() ?? null } as any
+    })
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+
+    await $.turn.start({ text: 'hi', turnId: 't1' })
+    await step($, { turnId: 't1', index: 0 })
+    usd = 0.05
+    await $.session.measure(measure(usd))
+    expect(await ui.find({ type: 'Text', text: / · 10k tok/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /this turn \$0\.05 · 10k tok/ })).toBeDefined()
+
+    await step($, { turnId: 't1', index: 0, agentId: 'helper' }) // a subagent's request counts too
+    await step($, { turnId: 't1', index: 1 }) // a request with no response adds nothing
+    expect(status).toBe('This session: $0.05 · 12k tok')
+
+    usd = 0.08
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1, turnId: 't1' } as any)
+    expect(await ui.find({ type: 'Text', text: /last turn \$0\.08 · 12k tok · 1 turn$/ })).toBeDefined()
+
+    await $.turn.start({ text: 'more', turnId: 't2' })
+    expect(await ui.find({ type: 'Text', text: /this turn \$0\.0000$/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: / · 12k tok/ })).toBeDefined()
+
+    const run = await $.command.run({ command: 'spend', args: '' } as any)
+    expect(run.text).toContain('Tokens        12k tok')
+    await ui.unmount()
   })
 })

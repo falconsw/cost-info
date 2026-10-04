@@ -1,7 +1,7 @@
 {
   "name": "cost-info",
-  "version": "0.1.0",
-  "description": "What this session has cost so far, live.",
+  "version": "0.2.0",
+  "description": "What this session has cost so far, and the tokens it took, live.",
   "author": {
     "name": "falconsw"
   },
