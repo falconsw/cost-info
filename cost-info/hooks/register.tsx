@@ -43,15 +43,15 @@ type Piece = { text: string; isFigure?: boolean }
 const money = (usd: number): string => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`
 
 const tok = (n: number): string =>
-  n < 1000 ? `${n} tok` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tok` : `${(n / 1_000_000).toFixed(2)}M tok`
+  n < 1000 ? `${n} tkn` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tkn` : `${(n / 1_000_000).toFixed(2)}M tkn`
 
 // A plan's rate-limit window, read from whatever shape the host reports it in. Plans that have
 // none (API billing) report an empty list, which is how the meter knows to show cost instead.
 const WINDOWS: Record<string, string> = {
-  five_hour: 'Session (5hr)',
-  seven_day: 'Weekly (7 day)',
-  seven_day_opus: 'Weekly Opus (7 day)',
-  seven_day_sonnet: 'Weekly Sonnet (7 day)',
+  five_hour: '5h',
+  seven_day: '7d',
+  seven_day_opus: '7d Opus',
+  seven_day_sonnet: '7d Sonnet',
 }
 
 const limitOf = (raw: unknown): Limit | null => {
@@ -108,7 +108,7 @@ const sessionOf = (m: Totals, budget = 0): Piece[] => [
           ...(i > 0 ? [{ text: ' | ' }] : []),
           { text: `${l.label} ` },
           { text: `%${l.percent}`, isFigure: true },
-          ...(reset === '' ? [] : [{ text: ` (reset ${reset})` }]),
+          ...(reset === '' ? [] : [{ text: ` ↻${reset}` }]),
         ]
       })
     : [{ text: money(m.total), isFigure: true }]),
@@ -305,9 +305,9 @@ const report = (m: Totals, budget: number): string => {
   if (m.limits.length > 0) {
     return [
       'Plan usage:',
-      ...m.limits.map(l => `  ${l.label.padEnd(21)} %${l.percent} used${left(l.resetsAt) === '' ? '' : ` (reset ${left(l.resetsAt)})`}`),
-      ...(m.tokens > 0 ? [`  Tokens                ${tok(m.tokens)} this session`] : []),
-      ...(m.turns > 0 ? [`  Turns                 ${m.turns}`] : []),
+      ...m.limits.map(l => `  ${l.label.padEnd(10)} %${l.percent} used${left(l.resetsAt) === '' ? '' : ` (resets in ${left(l.resetsAt)})`}`),
+      ...(m.tokens > 0 ? [`  Tokens     ${tok(m.tokens)} this session`] : []),
+      ...(m.turns > 0 ? [`  Turns      ${m.turns}`] : []),
     ].join('\n')
   }
   const lines = [`This session: ${money(m.total)}`]
