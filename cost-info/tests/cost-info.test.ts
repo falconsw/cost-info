@@ -258,12 +258,12 @@ describe('cost-info', () => {
 
     await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
     const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
-    expect(await shown(ui, 'meter')).toBe('◉ 5h 37% · 7d 12%')
-    expect((await ui.find({ type: 'Text', text: '37%' }))?.props.color).toBe('green')
+    expect(await shown(ui, 'meter')).toBe('◉ Session (5hr) %37 (reset 3h 0m) | Weekly (7 day) %12 (reset 1d 3h)')
+    expect((await ui.find({ type: 'Text', text: '%37' }))?.props.color).toBe('green')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
-    expect(run.text).toContain('5h')
-    expect(run.text).toContain('37% used (resets in 3h')
+    expect(run.text).toContain('Session (5hr)')
+    expect(run.text).toContain('%37 used (reset 3h')
     expect(run.text).not.toContain('$')
     await ui.unmount()
   })

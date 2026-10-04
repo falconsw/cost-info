@@ -10,7 +10,7 @@ A Claude Code mod that shows what your session has cost so far, and the tokens i
 - **`/spend`.** Tokens, turns, average per turn, your priciest turn, and how much of the budget is used.
 - **VS Code.** The extension doesn't draw that line, so there the meter opens as a **Cost** pane. Run `/spend` to bring it back if you close it.
 
-On a Pro or Max plan the dollars aren't what you're billed, so when Claude Code reports rate limits the meter shows how much of each is used instead: `◉ 5h 37% · 7d 12% · 128k tok`, and `/spend` adds when each resets. It reads what Claude Code already receives, so it costs nothing extra. Without rate limits (API billing) it shows cost as before. Tokens count from when the mod loaded into the session, so a resumed session's earlier tokens aren't in the total.
+On a Pro or Max plan the dollars aren't what you're billed, so when Claude Code reports rate limits the meter shows how much of each is used instead: `◉ Session (5hr) %37 (reset 3h 20m) | Weekly (7 day) %12 (reset 6d) · 128k tok`, the same two windows as the usage panel. It reads what Claude Code already receives, so it costs nothing extra. Without rate limits (API billing) it shows cost as before. Tokens count from when the mod loaded into the session, so a resumed session's earlier tokens aren't in the total.
 
 ## Install
 
