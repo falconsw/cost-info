@@ -39,10 +39,12 @@ const tokens = (input: number, output: number, read = 0, write = 0): ModelUsage 
   cache_creation_input_tokens: write,
 })
 
-const BAND = {
+const PANE = {
   plugin: 'cost-info',
-  component: 'AbovePrompt',
-  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120 },
+  surface: 'vscode',
+  component: 'Pane',
+  requestId: 'cost-info',
+  props: { title: 'Cost', isFocused: false, bodyColumns: 80, placement: 'dock' },
 } as const
 
 describe('cost-info', () => {
@@ -85,28 +87,26 @@ describe('cost-info', () => {
     expect(calls).toBe(0)
   })
 
-  for (const surface of ['terminal', 'desktop'] as const) {
-    test(`the band shows the cost and the last turn (${surface})`, async ($, on) => {
-      let usd = 0.12
+  test('the status line adds the last turn once one has ended', async ($, on) => {
+    let status: string | undefined
+    let usd = 0.12
 
-      engine(on)
-      on('ui.status', () => ({ value: undefined }))
-      on('session.usage', () => usage(usd))
+    engine(on)
+    on('ui.status', ($, e) => {
+      status = e.text
 
-      await $.session.start({ cwd: '/work', surface, isInteractive: true } as any)
-      const ui = await $.ui.mount({ ...BAND, surface } as any)
-
-      await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-      expect(await ui.find({ type: 'Text', text: /\$0\.12/ })).toBeDefined()
-
-      usd = 0.42
-      await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-      expect(await ui.find({ type: 'Text', text: /\$0\.42/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /last turn \$0\.30 · 2 turns/ })).toBeDefined()
-      expect(await ui.find({ type: 'Text', text: /\$5\.00 budget/ })).toBeDefined()
-      await ui.unmount()
+      return { value: undefined }
     })
-  }
+    on('session.usage', () => usage(usd))
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect(status).toBe('This session: $0.12 | last turn $0.12')
+
+    usd = 0.42
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect(status).toBe('This session: $0.42 | last turn $0.30')
+  })
 
   test('warns once when the session passes the budget', { options: { budget: 1 } }, async ($, on) => {
     const toasts: string[] = []
@@ -129,12 +129,13 @@ describe('cost-info', () => {
     expect(toasts).toEqual(['Cost Info: this session passed your $1.00 budget'])
   })
 
-  test('on VS Code, which has no band, the meter opens in a pane', async ($, on) => {
+  test('on VS Code the meter opens in a pane', async ($, on) => {
     const opened: string[] = []
+    let usd = 0
 
     engine(on)
     on('ui.status', () => ({ value: undefined }))
-    on('session.usage', () => usage(0.42))
+    on('session.usage', () => usage(usd))
     on('session.surfaces', () => ({ value: ['vscode'] }))
     on('ui.open', ($, e) => {
       opened.push(e.id)
@@ -146,15 +147,10 @@ describe('cost-info', () => {
     await $.session.attach({ surface: 'vscode', clientId: 'vscode:default' })
     expect(opened).toEqual(['cost-info'])
 
-    const pane = await $.ui.mount({
-      plugin: 'cost-info',
-      surface: 'vscode',
-      component: 'Pane',
-      requestId: 'cost-info',
-      props: { title: 'Cost', isFocused: false, bodyColumns: 80, placement: 'dock' },
-    } as any)
+    const pane = await $.ui.mount(PANE as any)
     expect(await pane.find({ type: 'Text', text: /Nothing spent yet/ })).toBeDefined()
 
+    usd = 0.42
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
     expect(await pane.find({ type: 'Text', text: /\$0\.42/ })).toBeDefined()
 
@@ -183,29 +179,32 @@ describe('cost-info', () => {
     })
 
     await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
-    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' } as any)
+    const pane = await $.ui.mount(PANE as any)
 
     await $.turn.start({ text: 'hi', turnId: 't1' })
+    expect(status).toBe('This session: $0.0000 | this turn $0.0000')
+
     await step($, { turnId: 't1', index: 0 })
+    expect(status).toBe('This session: $0.0000 · 10k tok | this turn $0.0000 · 10k tok')
+
     usd = 0.05
     await $.session.measure(measure(usd))
-    expect(await ui.find({ type: 'Text', text: / · 10k tok/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: /this turn \$0\.05 · 10k tok/ })).toBeDefined()
+    expect(status).toBe('This session: $0.05 · 10k tok | this turn $0.05 · 10k tok')
 
     await step($, { turnId: 't1', index: 0, agentId: 'helper' }) // a subagent's request counts too
     await step($, { turnId: 't1', index: 1 }) // a request with no response adds nothing
-    expect(status).toBe('This session: $0.05 · 12k tok')
+    expect(status).toBe('This session: $0.05 · 12k tok | this turn $0.05 · 12k tok')
 
     usd = 0.08
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1, turnId: 't1' } as any)
-    expect(await ui.find({ type: 'Text', text: /last turn \$0\.08 · 12k tok · 1 turn$/ })).toBeDefined()
+    expect(status).toBe('This session: $0.08 · 12k tok | last turn $0.08 · 12k tok')
+    expect(await pane.find({ type: 'Text', text: /last turn \$0\.08 · 12k tok · 1 turn$/ })).toBeDefined()
 
     await $.turn.start({ text: 'more', turnId: 't2' })
-    expect(await ui.find({ type: 'Text', text: /this turn \$0\.0000$/ })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: / · 12k tok/ })).toBeDefined()
+    expect(status).toBe('This session: $0.08 · 12k tok | this turn $0.0000')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
     expect(run.text).toContain('Tokens        12k tok')
-    await ui.unmount()
+    await pane.unmount()
   })
 })

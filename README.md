@@ -2,12 +2,11 @@
 
 A Claude Code mod that shows what your session has cost so far, and the tokens it took, live.
 
-- **Live total.** Updates as the session spends, mid-turn too. It's the same figure `/cost` shows, subagents included.
-- **Tokens.** Next to the cost: the session's total, and the running turn's while it works (the last turn's after). Every model request's input, cache writes, cache reads and output, summed, subagents included.
-- **Budget.** Green under half, yellow past half, red over, with a one-time warning when you cross it.
-- **`/spend`.** Tokens, turns, average per turn, and your priciest turn.
-- **Status line.** Also written as `This session: $x · 1.2M tok`.
-- **VS Code.** The extension has no room above the prompt, so there the meter opens as a **Cost** pane instead. Run `/spend` to bring it back if you close it.
+- **Status line.** `This session: $0.16 · 142k tok | this turn $0.02 · 30k tok` under the prompt, live, mid-turn too; once the turn ends it reads `last turn`. The cost is the same figure `/cost` shows, subagents included.
+- **Tokens.** Every model request's input, cache writes, cache reads and output, summed, subagents included.
+- **Budget.** A one-time warning when the session crosses it.
+- **`/spend`.** Tokens, turns, average per turn, your priciest turn, and how much of the budget is used.
+- **VS Code.** The meter also opens as a **Cost** pane: green under half the budget, yellow past half, red over. Run `/spend` to bring it back if you close it.
 
 On a Pro or Max plan the figure is what the same usage would cost on the API, not what you're billed. Tokens count from when the mod loaded into the session, so a resumed session's earlier tokens aren't in the total.
 

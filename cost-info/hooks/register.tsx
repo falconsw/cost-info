@@ -25,7 +25,7 @@ const EMPTY: Totals = {
 }
 // Held by the host, so the totals survive a hot reload of this file.
 const meter = atom({ plugin: 'cost-info', key: 'meter' } as const, EMPTY)
-// VS Code draws no band above the prompt, so there the meter lives in this pane.
+// In VS Code the meter also opens in a pane of its own.
 const PANE = 'cost-info'
 const TITLE = 'Cost'
 const COMMAND = 'spend'
@@ -38,8 +38,23 @@ const money = (usd: number): string => `$${usd < 0.01 ? usd.toFixed(4) : usd.toF
 const tok = (n: number): string =>
   n < 1000 ? `${n} tok` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tok` : `${(n / 1_000_000).toFixed(2)}M tok`
 
-const formatCost = (usd: number, tokens = 0): string =>
-  tokens > 0 ? `This session: ${money(usd)} · ${tok(tokens)}` : `This session: ${money(usd)}`
+// The running turn while it works, the last one after: its cost and, once counted, its tokens.
+const turnOf = (m: Totals): string | null => {
+  const tokens = m.turnTokens > 0 ? ` · ${tok(m.turnTokens)}` : ''
+
+  return m.isWorking
+    ? `this turn ${money(m.total - m.turnBase)}${tokens}`
+    : m.last !== null
+      ? `last turn ${money(m.last)}${tokens}`
+      : null
+}
+
+const statusOf = (m: Totals): string => {
+  const session = m.tokens > 0 ? `This session: ${money(m.total)} · ${tok(m.tokens)}` : `This session: ${money(m.total)}`
+  const turn = turnOf(m)
+
+  return turn === null ? session : `${session} | ${turn}`
+}
 
 const tokensOf = (u: ModelUsage): number =>
   u.input_tokens + u.output_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
@@ -50,10 +65,10 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     const { startedAt, cost } = await $.session.usage()
-    const m = await update($, meter, m => fresh(m, startedAt)) // a new session starts from zero, a reload keeps its totals
+    const m = await spend($, startedAt, cost?.usd, budget) // a new session starts from zero, a reload keeps its totals
     await $.command.register({ name: COMMAND, description: 'Show what this session has cost, turn by turn' })
     if (cost !== undefined) {
-      $.ui.status(formatCost(cost.usd, m.tokens))
+      $.ui.status(statusOf(m))
     }
 
     return result
@@ -64,14 +79,14 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.changed.includes('cost') && e.cost !== undefined) {
       const m = await spend($, (await $.session.usage()).startedAt, e.cost.usd, budget)
-      $.ui.status(formatCost(m.total, m.tokens))
+      $.ui.status(statusOf(m))
     }
 
     return result
   })
 
   on('turn.start', async ($, e, next) => {
-    await update($, meter, m => ({ ...m, turnTokens: 0, isWorking: true }))
+    $.ui.status(statusOf(await update($, meter, m => ({ ...m, turnTokens: 0, isWorking: true }))))
 
     return next(e)
   })
@@ -86,7 +101,7 @@ export const register: Register = (on, options) => {
         tokens: m.tokens + n,
         turnTokens: m.isWorking ? m.turnTokens + n : m.turnTokens,
       }))
-      $.ui.status(formatCost(m.total, m.tokens))
+      $.ui.status(statusOf(m))
     }
 
     return result
@@ -108,7 +123,7 @@ export const register: Register = (on, options) => {
           isWorking: false,
         }
       })
-      $.ui.status(formatCost(m.total, m.tokens))
+      $.ui.status(statusOf(m))
     }
 
     return result
@@ -130,15 +145,6 @@ export const register: Register = (on, options) => {
     return { text: report(m, budget) }
   })
 
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    const m = await read($, meter)
-    if (e.props.hasSurvey || m.total === 0) {
-      return next(e)
-    }
-
-    return band($.ui.resolve(e), m, budget, e.props.bodyColumns)
-  })
-
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const m = await read($, meter)
     const kit = $.ui.resolve(e)
@@ -146,7 +152,7 @@ export const register: Register = (on, options) => {
       return <kit.Text dimColor>{NOTHING}</kit.Text>
     }
 
-    return band(kit, m, budget, e.props.bodyColumns)
+    return view(kit, m, budget, e.props.bodyColumns)
   })
 }
 
@@ -179,15 +185,11 @@ const spend = async (
   return m
 }
 
-const band = ({ Box, Text }: Kit, m: Totals, budget: number, columns: number) => {
+const view = ({ Box, Text }: Kit, m: Totals, budget: number, columns: number) => {
   const used = budget > 0 ? m.total / budget : 0
   const color = budget === 0 ? undefined : used < 0.5 ? 'green' : used < 1 ? 'yellow' : 'red'
-  const turnTokens = m.turnTokens > 0 ? ` · ${tok(m.turnTokens)}` : ''
-  const turn = m.isWorking
-    ? `   this turn ${money(m.total - m.turnBase)}${turnTokens}`
-    : m.last !== null
-      ? `   last turn ${money(m.last)}${turnTokens} · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}`
-      : null
+  const last = turnOf(m)
+  const turn = last === null ? null : m.isWorking ? `   ${last}` : `   ${last} · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}`
 
   return (
     <Box flexDirection="row" paddingX={1}>
