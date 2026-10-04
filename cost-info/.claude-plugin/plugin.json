@@ -1,0 +1,20 @@
+{
+  "name": "cost-info",
+  "version": "0.1.0",
+  "description": "What this session has cost so far, live.",
+  "author": {
+    "name": "falconsw"
+  },
+  "homepage": "https://github.com/falconsw/cost-info",
+  "repository": "https://github.com/falconsw/cost-info",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "budget": {
+      "type": "number",
+      "title": "Budget (USD)",
+      "description": "Turns the meter yellow at half and red past it, with a one-time warning. 0 for no budget.",
+      "default": 5
+    }
+  }
+}

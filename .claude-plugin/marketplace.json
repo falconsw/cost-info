@@ -1,0 +1,14 @@
+{
+  "name": "falconsw-mods",
+  "owner": {
+    "name": "falconsw"
+  },
+  "description": "Claude Code mods by falconsw.",
+  "plugins": [
+    {
+      "name": "cost-info",
+      "source": "./cost-info",
+      "description": "What this session has cost so far, live."
+    }
+  ]
+}
