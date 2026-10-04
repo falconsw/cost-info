@@ -55,11 +55,11 @@ const limitOf = (raw: unknown): Limit | null => {
     return null
   }
   const pick = (...keys: string[]): unknown => keys.map(k => r[k]).find(v => v !== undefined && v !== null)
-  const used = pick('usedPercentage', 'used_percentage', 'usedPercent', 'percent', 'utilization')
+  const used = pick('percentUsed', 'usedPercentage', 'used_percentage', 'usedPercent', 'percent', 'utilization')
   if (typeof used !== 'number') {
     return null
   }
-  const name = String(pick('label', 'name', 'type', 'rateLimitType', 'window', 'id') ?? 'limit')
+  const name = String(pick('kind', 'label', 'name', 'type', 'rateLimitType', 'window', 'id') ?? 'limit')
   const at = pick('resetsAt', 'resets_at', 'resetAt', 'reset')
   const ms = typeof at === 'number' ? (at < 1e11 ? at * 1000 : at) : typeof at === 'string' ? Date.parse(at) : NaN
 
