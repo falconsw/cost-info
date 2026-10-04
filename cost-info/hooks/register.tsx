@@ -197,7 +197,13 @@ export const register: Register = (on, options) => {
     return result
   })
 
-  on('command.run', { command: COMMAND }, async $ => {
+  on('command.run', { command: COMMAND }, async ($, e) => {
+    if (String((e as { args?: string }).args ?? '').trim() === 'raw') {
+      // What the host reports, unparsed: for finding out why no limits show.
+      const u = await $.session.usage()
+
+      return { text: `usage keys: ${Object.keys(u).join(', ')}\nrateLimits: ${JSON.stringify(u.rateLimits)}` }
+    }
     const m = await read($, meter)
     if ((await $.session.surfaces()).includes('vscode')) {
       await $.ui.open({ id: PANE, title: TITLE }) // asked for, so it is placed at any width
