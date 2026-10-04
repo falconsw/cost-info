@@ -12,22 +12,16 @@ On a Pro or Max plan the figure is what the same usage would cost on the API, no
 
 ## Install
 
-Requires Claude Code 2.1.288 or later.
-
-```
-/plugin marketplace add falconsw/cost-info
-/plugin install cost-info@falconsw-mods
-/reload-plugins
-```
-
-The VS Code extension has no `/plugin` command; run the same from a shell, then start a new session:
+Requires Claude Code 2.1.288 or later. Run these in a shell, not inside a Claude Code session:
 
 ```
 claude plugin marketplace add falconsw/cost-info
 claude plugin install cost-info@falconsw-mods
 ```
 
-To get a new version: `claude plugin update cost-info@falconsw-mods`.
+Then start a new Claude Code session, in the terminal or in VS Code.
+
+To get a new version, run `claude plugin update cost-info@falconsw-mods` and start a new session. To remove it, run `claude plugin uninstall cost-info@falconsw-mods`.
 
 ## Configure
 
