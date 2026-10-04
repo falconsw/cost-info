@@ -248,7 +248,7 @@ describe('cost-info', () => {
   test('on a plan with rate limits the footer shows the used share instead of dollars', async ($, on) => {
     const resetsAt = Math.floor(Date.now() / 1000) + 3 * 3600
     const limits = [
-      { type: 'five_hour', usedPercentage: 37, resetsAt },
+      { kind: 'five_hour', percentUsed: 37, resetsAt: new Date(resetsAt * 1000).toISOString() }, // the shape Claude Code reports
       { type: 'seven_day', utilization: 0.12, resetsAt: resetsAt + 86400 },
     ]
 
