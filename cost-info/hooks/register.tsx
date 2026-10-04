@@ -43,7 +43,7 @@ type Piece = { text: string; isFigure?: boolean; color?: string }
 const money = (usd: number): string => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`
 
 const tok = (n: number): string =>
-  n < 1000 ? `${n} tkn` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tkn` : `${(n / 1_000_000).toFixed(2)}M tkn`
+  n < 1000 ? `${n} tok` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tok` : `${(n / 1_000_000).toFixed(2)}M tok`
 
 // A plan's rate-limit window, read from whatever shape the host reports it in. Plans that have
 // none (API billing) report an empty list, which is how the meter knows to show cost instead.
@@ -144,7 +144,7 @@ const turnOf = (m: Totals, withCount = false): Piece[] | null => {
   const isPlan = m.limits.length > 0
 
   return [
-    { text: m.isWorking ? 'this turn ' : 'last turn ' },
+    { text: m.isWorking ? 'now ' : 'last ' },
     ...(isPlan ? [] : [{ text: money(cost), isFigure: true }]),
     ...(m.turnTokens > 0 ? [...(isPlan ? [] : [{ text: ' | ' }]), { text: tok(m.turnTokens), isFigure: true }] : []),
     ...(withCount && !m.isWorking ? [{ text: ` · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}` }] : []),
