@@ -25,39 +25,55 @@ const EMPTY: Totals = {
 }
 // Held by the host, so the totals survive a hot reload of this file.
 const meter = atom({ plugin: 'cost-info', key: 'meter' } as const, EMPTY)
-// In VS Code the meter also opens in a pane of its own.
+// VS Code draws no prompt footer, so there the meter opens in a pane of its own.
 const PANE = 'cost-info'
 const TITLE = 'Cost'
 const COMMAND = 'spend'
 const NOTHING = 'Nothing spent yet this session.'
+// Below this many columns the footer leaves the turn out.
+const WIDE = 120
 
 type Kit = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
+
+// One run of the meter's text: a figure, drawn green, or the words around the figures.
+type Piece = { text: string; isFigure?: boolean }
 
 const money = (usd: number): string => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`
 
 const tok = (n: number): string =>
   n < 1000 ? `${n} tok` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tok` : `${(n / 1_000_000).toFixed(2)}M tok`
 
-// The running turn while it works, the last one after: its cost and, once counted, its tokens.
-const turnOf = (m: Totals): string | null => {
-  const tokens = m.turnTokens > 0 ? ` · ${tok(m.turnTokens)}` : ''
-
-  return m.isWorking
-    ? `this turn ${money(m.total - m.turnBase)}${tokens}`
-    : m.last !== null
-      ? `last turn ${money(m.last)}${tokens}`
-      : null
-}
-
-const statusOf = (m: Totals): string => {
-  const session = m.tokens > 0 ? `This session: ${money(m.total)} · ${tok(m.tokens)}` : `This session: ${money(m.total)}`
-  const turn = turnOf(m)
-
-  return turn === null ? session : `${session} | ${turn}`
-}
-
 const tokensOf = (u: ModelUsage): number =>
   u.input_tokens + u.output_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
+
+// The session's cost and tokens, and the budget where one is shown.
+const sessionOf = (m: Totals, budget = 0): Piece[] => [
+  { text: 'session ' },
+  { text: money(m.total), isFigure: true },
+  ...(m.tokens > 0 ? [{ text: ' · ' }, { text: tok(m.tokens), isFigure: true }] : []),
+  ...(budget > 0 ? [{ text: ` of ${money(budget)} budget` }] : []),
+]
+
+// The running turn while it works, the last one after; null before the first.
+const turnOf = (m: Totals, withCount = false): Piece[] | null => {
+  const cost = m.isWorking ? m.total - m.turnBase : m.last
+  if (cost === null) {
+    return null
+  }
+
+  return [
+    { text: m.isWorking ? 'this turn ' : 'last turn ' },
+    { text: money(cost), isFigure: true },
+    ...(m.turnTokens > 0 ? [{ text: ' · ' }, { text: tok(m.turnTokens), isFigure: true }] : []),
+    ...(withCount && !m.isWorking ? [{ text: ` · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}` }] : []),
+  ]
+}
+
+const draw = ({ Box, Text }: Kit, key: string, pieces: Piece[]) => (
+  <Box key={key} flexDirection="row">
+    {pieces.map(piece => (piece.isFigure ? <Text color="green">{piece.text}</Text> : <Text>{piece.text}</Text>))}
+  </Box>
+)
 
 export const register: Register = (on, options) => {
   const budget = typeof options.budget === 'number' ? options.budget : 0
@@ -65,11 +81,8 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     const { startedAt, cost } = await $.session.usage()
-    const m = await spend($, startedAt, cost?.usd, budget) // a new session starts from zero, a reload keeps its totals
+    await spend($, startedAt, cost?.usd, budget) // a new session starts from zero, a reload keeps its totals
     await $.command.register({ name: COMMAND, description: 'Show what this session has cost, turn by turn' })
-    if (cost !== undefined) {
-      $.ui.status(statusOf(m))
-    }
 
     return result
   })
@@ -78,15 +91,14 @@ export const register: Register = (on, options) => {
   on('session.measure', async ($, e, next) => {
     const result = await next(e)
     if (e.changed.includes('cost') && e.cost !== undefined) {
-      const m = await spend($, (await $.session.usage()).startedAt, e.cost.usd, budget)
-      $.ui.status(statusOf(m))
+      await spend($, (await $.session.usage()).startedAt, e.cost.usd, budget)
     }
 
     return result
   })
 
   on('turn.start', async ($, e, next) => {
-    $.ui.status(statusOf(await update($, meter, m => ({ ...m, turnTokens: 0, isWorking: true }))))
+    await update($, meter, m => ({ ...m, turnTokens: 0, isWorking: true }))
 
     return next(e)
   })
@@ -96,12 +108,11 @@ export const register: Register = (on, options) => {
     const result = yield* next(e)
     if (result.usage !== null) {
       const n = tokensOf(result.usage)
-      const m = await update($, meter, m => ({
+      await update($, meter, m => ({
         ...m,
         tokens: m.tokens + n,
         turnTokens: m.isWorking ? m.turnTokens + n : m.turnTokens,
       }))
-      $.ui.status(statusOf(m))
     }
 
     return result
@@ -111,7 +122,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.agentId === undefined) {
       const { startedAt, cost } = await $.session.usage()
-      const m = await spend($, startedAt, cost?.usd, budget, m => {
+      await spend($, startedAt, cost?.usd, budget, m => {
         const last = m.total - m.turnBase
 
         return {
@@ -123,7 +134,6 @@ export const register: Register = (on, options) => {
           isWorking: false,
         }
       })
-      $.ui.status(statusOf(m))
     }
 
     return result
@@ -145,14 +155,40 @@ export const register: Register = (on, options) => {
     return { text: report(m, budget) }
   })
 
+  // Under the prompt, left of the engine's own mode labels, which stay as the engine drew them.
+  on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
+    const modes = await next(e)
+    const m = await read($, meter)
+    if (m.total === 0 && m.tokens === 0) {
+      return modes
+    }
+    const turn = (e.viewport?.columns ?? WIDE) >= WIDE ? turnOf(m) : null
+    const pieces = turn === null ? sessionOf(m) : [...sessionOf(m), { text: ' | ' }, ...turn]
+    const kit = $.ui.resolve(e)
+
+    return (
+      <kit.Box flexDirection="row">
+        {draw(kit, 'meter', pieces)}
+        {e.props.modes.length > 0 && <kit.Text>{'  '}</kit.Text>}
+        {modes}
+      </kit.Box>
+    )
+  })
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const m = await read($, meter)
     const kit = $.ui.resolve(e)
     if (m.total === 0) {
-      return <kit.Text dimColor>{NOTHING}</kit.Text>
+      return <kit.Text>{NOTHING}</kit.Text>
     }
+    const turn = turnOf(m, true)
 
-    return view(kit, m, budget, e.props.bodyColumns)
+    return (
+      <kit.Box flexDirection="column" paddingX={1}>
+        {draw(kit, 'session', sessionOf(m, budget))}
+        {turn !== null && draw(kit, 'turn', turn)}
+      </kit.Box>
+    )
   })
 }
 
@@ -183,24 +219,6 @@ const spend = async (
   }
 
   return m
-}
-
-const view = ({ Box, Text }: Kit, m: Totals, budget: number, columns: number) => {
-  const used = budget > 0 ? m.total / budget : 0
-  const color = budget === 0 ? undefined : used < 0.5 ? 'green' : used < 1 ? 'yellow' : 'red'
-  const last = turnOf(m)
-  const turn = last === null ? null : m.isWorking ? `   ${last}` : `   ${last} · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}`
-
-  return (
-    <Box flexDirection="row" paddingX={1}>
-      <Text color={color} bold>
-        {money(m.total)}
-      </Text>
-      {budget > 0 && <Text dimColor>{` / ${money(budget)} budget`}</Text>}
-      {m.tokens > 0 && <Text dimColor>{` · ${tok(m.tokens)}`}</Text>}
-      {columns >= 80 && turn !== null && <Text dimColor>{turn}</Text>}
-    </Box>
-  )
 }
 
 const report = (m: Totals, budget: number): string => {

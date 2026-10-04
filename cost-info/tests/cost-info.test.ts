@@ -39,6 +39,13 @@ const tokens = (input: number, output: number, read = 0, write = 0): ModelUsage 
   cache_creation_input_tokens: write,
 })
 
+const FOOTER = {
+  plugin: 'cost-info',
+  component: 'SessionMode',
+  props: { modes: [] },
+  viewport: { columns: 160, rows: 40 },
+} as const
+
 const PANE = {
   plugin: 'cost-info',
   surface: 'vscode',
@@ -47,36 +54,37 @@ const PANE = {
   props: { title: 'Cost', isFocused: false, bodyColumns: 80, placement: 'dock' },
 } as const
 
+// What the Box keyed `key` shows, or '' while it is not drawn.
+const shown = async (ui: any, key: string): Promise<string> => (await ui.find({ key }))?.text ?? ''
+
 describe('cost-info', () => {
-  test('shows the cost at start and updates it after each measure', async ($, on) => {
-    let status: string | undefined
-    let usd = 0.0042
+  for (const surface of ['terminal', 'desktop'] as const) {
+    test(`the footer shows the cost, its figures green and its words uncolored (${surface})`, async ($, on) => {
+      let usd = 0.0042
 
-    engine(on)
-    on('ui.status', ($, e) => {
-      status = e.text
+      engine(on)
+      on('session.usage', () => usage(usd))
 
-      return { value: undefined }
+      await $.session.start({ cwd: '/work', surface, isInteractive: true } as any)
+      const ui = await $.ui.mount({ ...FOOTER, surface } as any)
+      expect(await shown(ui, 'meter')).toBe('session $0.0042')
+      expect((await ui.find({ type: 'Text', text: '$0.0042' }))?.props.color).toBe('green')
+      expect((await ui.find({ type: 'Text', text: 'session ' }))?.props.color).toBeUndefined()
+
+      usd = 1.237
+      await $.session.measure(measure(usd))
+      expect(await shown(ui, 'meter')).toBe('session $1.24')
+      await ui.unmount()
     })
-    on('session.usage', () => usage(usd))
+  }
 
-    await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
-    expect(status).toBe('This session: $0.0042')
-
-    usd = 1.237
-    await $.session.measure(measure(usd))
-    expect(status).toBe('This session: $1.24')
-  })
-
-  test('ignores measurements where the cost did not move', async ($, on) => {
-    let calls = 0
-
+  test('draws nothing of its own until something is spent, and ignores measurements where the cost did not move', async ($, on) => {
     engine(on)
-    on('ui.status', () => {
-      calls += 1
+    on('session.usage', () => usage(0))
 
-      return { value: undefined }
-    })
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
+    expect(await ui.find({ key: 'meter' })).toBeUndefined()
 
     await $.session.measure({
       context: { window: 200000, tokens: 1000, percent: 1 },
@@ -84,35 +92,48 @@ describe('cost-info', () => {
       cost: { usd: 1 },
       changed: ['context'],
     })
-    expect(calls).toBe(0)
+    expect(await ui.find({ key: 'meter' })).toBeUndefined()
+    await ui.unmount()
   })
 
-  test('the status line adds the last turn once one has ended', async ($, on) => {
-    let status: string | undefined
+  test("keeps the engine's own mode labels beside the meter", async ($, on) => {
+    on('session.start', ($, e) => ({ cwd: e.cwd }))
+    on('command.register', ($, e) => ({ value: { command: e.name } }))
+    on('session.usage', () => usage(0.12))
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'focus' }))
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal', props: { modes: ['focus'] } } as any)
+    expect(await shown(ui, 'meter')).toBe('session $0.12')
+    expect(await ui.find({ type: 'Text', text: 'focus' })).toBeDefined()
+    await ui.unmount()
+  })
+
+  test('the footer adds the last turn once one has ended, and leaves it out when narrow', async ($, on) => {
     let usd = 0.12
 
     engine(on)
-    on('ui.status', ($, e) => {
-      status = e.text
-
-      return { value: undefined }
-    })
     on('session.usage', () => usage(usd))
 
     await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
+    const narrow = await $.ui.mount({ ...FOOTER, surface: 'terminal', viewport: { columns: 90, rows: 40 } } as any)
+
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-    expect(status).toBe('This session: $0.12 | last turn $0.12')
+    expect(await shown(ui, 'meter')).toBe('session $0.12 | last turn $0.12')
 
     usd = 0.42
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-    expect(status).toBe('This session: $0.42 | last turn $0.30')
+    expect(await shown(ui, 'meter')).toBe('session $0.42 | last turn $0.30')
+    expect(await shown(narrow, 'meter')).toBe('session $0.42')
+    await ui.unmount()
+    await narrow.unmount()
   })
 
   test('warns once when the session passes the budget', { options: { budget: 1 } }, async ($, on) => {
     const toasts: string[] = []
 
     engine(on)
-    on('ui.status', () => ({ value: undefined }))
     on('session.usage', () => usage(0))
     on('ui.toast', ($, e) => {
       toasts.push(e.text)
@@ -134,7 +155,6 @@ describe('cost-info', () => {
     let usd = 0
 
     engine(on)
-    on('ui.status', () => ({ value: undefined }))
     on('session.usage', () => usage(usd))
     on('session.surfaces', () => ({ value: ['vscode'] }))
     on('ui.open', ($, e) => {
@@ -152,7 +172,9 @@ describe('cost-info', () => {
 
     usd = 0.42
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-    expect(await pane.find({ type: 'Text', text: /\$0\.42/ })).toBeDefined()
+    expect(await shown(pane, 'session')).toBe('session $0.42 of $5.00 budget')
+    expect(await shown(pane, 'turn')).toBe('last turn $0.42 · 1 turn')
+    expect((await pane.find({ type: 'Text', text: '$0.42' }))?.props.color).toBe('green')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
     expect(run.text).toContain('This session: $0.42')
@@ -163,15 +185,9 @@ describe('cost-info', () => {
 
   test('counts the tokens of the running turn and of the whole session', async ($, on) => {
     let usd = 0
-    let status: string | undefined
     const responses: (ModelUsage | null)[] = [tokens(500, 1000, 8000, 500), tokens(1500, 500), null]
 
     engine(on)
-    on('ui.status', ($, e) => {
-      status = e.text
-
-      return { value: undefined }
-    })
     on('session.usage', () => usage(usd))
     on('session.surfaces', () => ({ value: ['terminal'] }))
     on('turn.step', async function* ($, e) {
@@ -179,32 +195,30 @@ describe('cost-info', () => {
     })
 
     await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
-    const pane = await $.ui.mount(PANE as any)
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
 
     await $.turn.start({ text: 'hi', turnId: 't1' })
-    expect(status).toBe('This session: $0.0000 | this turn $0.0000')
-
     await step($, { turnId: 't1', index: 0 })
-    expect(status).toBe('This session: $0.0000 · 10k tok | this turn $0.0000 · 10k tok')
+    expect(await shown(ui, 'meter')).toBe('session $0.0000 · 10k tok | this turn $0.0000 · 10k tok')
 
     usd = 0.05
     await $.session.measure(measure(usd))
-    expect(status).toBe('This session: $0.05 · 10k tok | this turn $0.05 · 10k tok')
+    expect(await shown(ui, 'meter')).toBe('session $0.05 · 10k tok | this turn $0.05 · 10k tok')
 
     await step($, { turnId: 't1', index: 0, agentId: 'helper' }) // a subagent's request counts too
     await step($, { turnId: 't1', index: 1 }) // a request with no response adds nothing
-    expect(status).toBe('This session: $0.05 · 12k tok | this turn $0.05 · 12k tok')
+    expect(await shown(ui, 'meter')).toBe('session $0.05 · 12k tok | this turn $0.05 · 12k tok')
+    expect((await ui.find({ type: 'Text', text: '12k tok' }))?.props.color).toBe('green')
 
     usd = 0.08
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1, turnId: 't1' } as any)
-    expect(status).toBe('This session: $0.08 · 12k tok | last turn $0.08 · 12k tok')
-    expect(await pane.find({ type: 'Text', text: /last turn \$0\.08 · 12k tok · 1 turn$/ })).toBeDefined()
+    expect(await shown(ui, 'meter')).toBe('session $0.08 · 12k tok | last turn $0.08 · 12k tok')
 
     await $.turn.start({ text: 'more', turnId: 't2' })
-    expect(status).toBe('This session: $0.08 · 12k tok | this turn $0.0000')
+    expect(await shown(ui, 'meter')).toBe('session $0.08 · 12k tok | this turn $0.0000')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
     expect(run.text).toContain('Tokens        12k tok')
-    await pane.unmount()
+    await ui.unmount()
   })
 })
