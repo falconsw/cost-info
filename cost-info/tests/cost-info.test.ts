@@ -109,7 +109,7 @@ describe('cost-info', () => {
     await ui.unmount()
   })
 
-  test('the footer adds the last turn once one has ended, and leaves it out when narrow', async ($, on) => {
+  test('the footer adds the last once one has ended, and leaves it out when narrow', async ($, on) => {
     let usd = 0
 
     engine(on)
@@ -121,11 +121,11 @@ describe('cost-info', () => {
 
     usd = 0.12
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-    expect(await shown(ui, 'meter')).toBe('◉ $0.12 | last turn $0.12')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.12 | last $0.12')
 
     usd = 0.42
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-    expect(await shown(ui, 'meter')).toBe('◉ $0.42 | last turn $0.30')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.42 | last $0.30')
     expect(await shown(narrow, 'meter')).toBe('◉ $0.42')
     await ui.unmount()
     await narrow.unmount()
@@ -145,7 +145,7 @@ describe('cost-info', () => {
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
     usd = 10.2
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
-    expect(await shown(ui, 'meter')).toBe('◉ $10.20 | last turn $0.08')
+    expect(await shown(ui, 'meter')).toBe('◉ $10.20 | last $0.08')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
     expect(run.text).toContain('This session: $10.20')
@@ -197,7 +197,7 @@ describe('cost-info', () => {
     usd = 0.42
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
     expect(await shown(pane, 'session')).toBe('◉ $0.42 of $5.00 budget')
-    expect(await shown(pane, 'turn')).toBe('last turn $0.42 · 1 turn')
+    expect(await shown(pane, 'turn')).toBe('last $0.42 · 1 turn')
     expect((await pane.find({ type: 'Text', text: '$0.42' }))?.props.color).toBe('green')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
@@ -223,26 +223,26 @@ describe('cost-info', () => {
 
     await $.turn.start({ text: 'hi', turnId: 't1' })
     await step($, { turnId: 't1', index: 0 })
-    expect(await shown(ui, 'meter')).toBe('◉ $0.0000 · 10k tkn | this turn $0.0000 · 10k tkn')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.0000 | 10k tok | now $0.0000 | 10k tok')
 
     usd = 0.05
     await $.session.measure(measure(usd))
-    expect(await shown(ui, 'meter')).toBe('◉ $0.05 · 10k tkn | this turn $0.05 · 10k tkn')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.05 | 10k tok | now $0.05 | 10k tok')
 
     await step($, { turnId: 't1', index: 0, agentId: 'helper' }) // a subagent's request counts too
     await step($, { turnId: 't1', index: 1 }) // a request with no response adds nothing
-    expect(await shown(ui, 'meter')).toBe('◉ $0.05 · 12k tkn | this turn $0.05 · 12k tkn')
-    expect((await ui.find({ type: 'Text', text: '12k tkn' }))?.props.color).toBe('green')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.05 | 12k tok | now $0.05 | 12k tok')
+    expect((await ui.find({ type: 'Text', text: '12k tok' }))?.props.color).toBe('green')
 
     usd = 0.08
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1, turnId: 't1' } as any)
-    expect(await shown(ui, 'meter')).toBe('◉ $0.08 · 12k tkn | last turn $0.08 · 12k tkn')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.08 | 12k tok | last $0.08 | 12k tok')
 
     await $.turn.start({ text: 'more', turnId: 't2' })
-    expect(await shown(ui, 'meter')).toBe('◉ $0.08 · 12k tkn | this turn $0.0000')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.08 | 12k tok | now $0.0000')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
-    expect(run.text).toContain('Tokens        12k tkn')
+    expect(run.text).toContain('Tokens        12k tok')
     await ui.unmount()
   })
   test('on a plan with rate limits the footer shows the used share instead of dollars', async ($, on) => {
@@ -258,12 +258,12 @@ describe('cost-info', () => {
 
     await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
     const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
-    expect(await shown(ui, 'meter')).toBe('◉ 5h %37 ⏱ 3h 0m | 7d %12 ⏱ 1d 3h')
-    expect((await ui.find({ type: 'Text', text: '%37' }))?.props.color).toBe('green')
+    expect(await shown(ui, 'meter')).toBe('◉ 5h ━━━───── 37%  wk ━─────── 12%  Resets in 3h 0m')
+    expect((await ui.find({ type: 'Text', text: '━━━' }))?.props.color).toBe('green')
 
     const run = await $.command.run({ command: 'spend', args: '' } as any)
     expect(run.text).toContain('5h')
-    expect(run.text).toContain('%37 used (resets in 3h')
+    expect(run.text).toContain('37% used (resets in 3h')
     expect(run.text).not.toContain('$')
     await ui.unmount()
   })

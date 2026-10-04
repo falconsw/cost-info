@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1084" height="300" viewBox="0 0 1084 300" role="img" aria-label="Claude Code in a macOS terminal, with Cost Info under the prompt: ◉ 5h %37 ⏱ 3h 20m | 7d %12 ⏱ 6d · 128k tkn | last turn 31k tkn">
+<svg xmlns="http://www.w3.org/2000/svg" width="1084" height="300" viewBox="0 0 1084 300" role="img" aria-label="Claude Code in a macOS terminal, with Cost Info under the prompt: ◉ 5h ━━━───── 37%  wk ━─────── 12%  Resets in 3h 20m | 128k tok | last 31k tok">
   <title>Cost Info under the Claude Code prompt</title>
   <defs>
     <filter id="shadow" x="-5%" y="-10%" width="110%" height="135%">
@@ -34,6 +34,6 @@
 
     <!-- The line under the prompt: the engine's hint, and Cost Info at its right, on a plan with rate limits -->
     <text x="36" y="232" fill="#8b8e98"><tspan fill="#f0a830">▸▸ auto mode on</tspan> (shift+tab to cycle) · ← for agents</text>
-    <text x="1048" y="232" text-anchor="end" fill="#e8e8ea">◉ 5h <tspan fill="#4fc76a">%37</tspan> ⏱ 3h 20m | 7d <tspan fill="#4fc76a">%12</tspan> ⏱ 6d · <tspan fill="#4fc76a">128k tkn</tspan> | last turn <tspan fill="#4fc76a">31k tkn</tspan></text>
+    <text x="1048" y="232" text-anchor="end" fill="#e8e8ea"><tspan fill="#8a8a92">◉ 5h </tspan><tspan fill="#4fc76a">━━━</tspan><tspan fill="#8a8a92">───── </tspan>37%  <tspan fill="#8a8a92">wk </tspan><tspan fill="#4fc76a">━</tspan><tspan fill="#8a8a92">─────── </tspan>12%  <tspan fill="#8a8a92">Resets in 3h 20m</tspan> | <tspan fill="#4fc76a">128k tok</tspan> | last <tspan fill="#4fc76a">31k tok</tspan></text>
   </g>
 </svg>

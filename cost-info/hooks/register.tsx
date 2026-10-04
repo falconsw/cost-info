@@ -38,20 +38,20 @@ const WIDE = 120
 type Kit = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
 // One run of the meter's text: a figure, drawn green, or the words around the figures.
-type Piece = { text: string; isFigure?: boolean }
+type Piece = { text: string; isFigure?: boolean; color?: string }
 
 const money = (usd: number): string => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`
 
 const tok = (n: number): string =>
-  n < 1000 ? `${n} tkn` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tkn` : `${(n / 1_000_000).toFixed(2)}M tkn`
+  n < 1000 ? `${n} tok` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tok` : `${(n / 1_000_000).toFixed(2)}M tok`
 
 // A plan's rate-limit window, read from whatever shape the host reports it in. Plans that have
 // none (API billing) report an empty list, which is how the meter knows to show cost instead.
 const WINDOWS: Record<string, string> = {
   five_hour: '5h',
-  seven_day: '7d',
-  seven_day_opus: '7d Opus',
-  seven_day_sonnet: '7d Sonnet',
+  seven_day: 'wk',
+  seven_day_opus: 'wk Opus',
+  seven_day_sonnet: 'wk Sonnet',
 }
 
 const limitOf = (raw: unknown): Limit | null => {
@@ -96,23 +96,41 @@ const left = (resetsAt: number | null, now = Date.now()): string => {
 const tokensOf = (u: ModelUsage): number =>
   u.input_tokens + u.output_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
 
+const BAR = 8
+
+// A thin gauge: the used share filled (at least a dot once anything is used), the rest a track.
+// It turns yellow from 70% and red from 90%.
+const gauge = (percent: number): Piece[] => {
+  const filled = percent <= 0 ? 0 : Math.min(BAR, Math.max(1, Math.round((percent / 100) * BAR)))
+
+  return [
+    { text: '━'.repeat(filled), color: percent >= 90 ? 'red' : percent >= 70 ? 'yellow' : 'green' },
+    { text: '─'.repeat(BAR - filled), color: 'gray' },
+  ]
+}
+
+// The plan's windows as gauges, and when the soonest one resets.
+const limitsPieces = (limits: Limit[]): Piece[] => {
+  const next = limits.filter(l => left(l.resetsAt) !== '').sort((a, b) => a.resetsAt! - b.resetsAt!)[0]
+  const reset = next === undefined ? '' : left(next.resetsAt)
+
+  return [
+    ...limits.flatMap((l, i): Piece[] => [
+      { text: i > 0 ? '  ' : '' },
+      { text: `${l.label} `, color: 'gray' },
+      ...gauge(l.percent),
+      { text: ` ${l.percent}%`, isFigure: false },
+    ]),
+    ...(reset === '' ? [] : [{ text: `  Resets in ${reset}`, color: 'gray' }]),
+  ]
+}
+
 // The session's cost and tokens behind its mark, and the budget where one is shown.
 // On a plan with rate limits the dollars mean nothing, so the limits' used share stands in for them.
 const sessionOf = (m: Totals, budget = 0): Piece[] => [
   { text: '◉ ' },
-  ...(m.limits.length > 0
-    ? m.limits.flatMap((l, i): Piece[] => {
-        const reset = left(l.resetsAt)
-
-        return [
-          ...(i > 0 ? [{ text: ' | ' }] : []),
-          { text: `${l.label} ` },
-          { text: `%${l.percent}`, isFigure: true },
-          ...(reset === '' ? [] : [{ text: ` ⏱ ${reset}` }]),
-        ]
-      })
-    : [{ text: money(m.total), isFigure: true }]),
-  ...(m.tokens > 0 ? [{ text: ' · ' }, { text: tok(m.tokens), isFigure: true }] : []),
+  ...(m.limits.length > 0 ? limitsPieces(m.limits) : [{ text: money(m.total), isFigure: true }]),
+  ...(m.tokens > 0 ? [{ text: ' | ' }, { text: tok(m.tokens), isFigure: true }] : []),
   ...(budget > 0 && m.limits.length === 0 ? [{ text: ` of ${money(budget)} budget` }] : []),
 ]
 
@@ -126,16 +144,22 @@ const turnOf = (m: Totals, withCount = false): Piece[] | null => {
   const isPlan = m.limits.length > 0
 
   return [
-    { text: m.isWorking ? 'this turn ' : 'last turn ' },
+    { text: m.isWorking ? 'now ' : 'last ' },
     ...(isPlan ? [] : [{ text: money(cost), isFigure: true }]),
-    ...(m.turnTokens > 0 ? [...(isPlan ? [] : [{ text: ' · ' }]), { text: tok(m.turnTokens), isFigure: true }] : []),
+    ...(m.turnTokens > 0 ? [...(isPlan ? [] : [{ text: ' | ' }]), { text: tok(m.turnTokens), isFigure: true }] : []),
     ...(withCount && !m.isWorking ? [{ text: ` · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}` }] : []),
   ]
 }
 
 const draw = ({ Box, Text }: Kit, key: string, pieces: Piece[]) => (
   <Box key={key} flexDirection="row">
-    {pieces.map(piece => (piece.isFigure ? <Text color="green">{piece.text}</Text> : <Text>{piece.text}</Text>))}
+    {pieces.map(piece =>
+      piece.text === '' ? null : piece.isFigure || piece.color !== undefined ? (
+        <Text color={piece.isFigure ? 'green' : piece.color}>{piece.text}</Text>
+      ) : (
+        <Text>{piece.text}</Text>
+      ),
+    )}
   </Box>
 )
 
@@ -305,7 +329,7 @@ const report = (m: Totals, budget: number): string => {
   if (m.limits.length > 0) {
     return [
       'Plan usage:',
-      ...m.limits.map(l => `  ${l.label.padEnd(10)} %${l.percent} used${left(l.resetsAt) === '' ? '' : ` (resets in ${left(l.resetsAt)})`}`),
+      ...m.limits.map(l => `  ${l.label.padEnd(10)} ${l.percent}% used${left(l.resetsAt) === '' ? '' : ` (resets in ${left(l.resetsAt)})`}`),
       ...(m.tokens > 0 ? [`  Tokens     ${tok(m.tokens)} this session`] : []),
       ...(m.turns > 0 ? [`  Turns      ${m.turns}`] : []),
     ].join('\n')
