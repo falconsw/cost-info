@@ -110,7 +110,7 @@ describe('cost-info', () => {
   })
 
   test('the footer adds the last turn once one has ended, and leaves it out when narrow', async ($, on) => {
-    let usd = 0.12
+    let usd = 0
 
     engine(on)
     on('session.usage', () => usage(usd))
@@ -119,6 +119,7 @@ describe('cost-info', () => {
     const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
     const narrow = await $.ui.mount({ ...FOOTER, surface: 'terminal', viewport: { columns: 90, rows: 40 } } as any)
 
+    usd = 0.12
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
     expect(await shown(ui, 'meter')).toBe('◉ $0.12 | last turn $0.12')
 
@@ -128,6 +129,29 @@ describe('cost-info', () => {
     expect(await shown(narrow, 'meter')).toBe('◉ $0.42')
     await ui.unmount()
     await narrow.unmount()
+  })
+
+  test('loaded into a session that already spent, it counts turns from there', async ($, on) => {
+    let usd = 10
+
+    engine(on)
+    on('session.usage', () => usage(usd))
+    on('session.surfaces', () => ({ value: ['terminal'] }))
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
+
+    usd = 10.12
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    usd = 10.2
+    await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1 } as any)
+    expect(await shown(ui, 'meter')).toBe('◉ $10.20 | last turn $0.08')
+
+    const run = await $.command.run({ command: 'spend', args: '' } as any)
+    expect(run.text).toContain('This session: $10.20')
+    expect(run.text).toContain('Per turn      $0.10 on average')
+    expect(run.text).toContain('Priciest turn $0.12')
+    await ui.unmount()
   })
 
   test('warns once when the session passes the budget', { options: { budget: 1 } }, async ($, on) => {

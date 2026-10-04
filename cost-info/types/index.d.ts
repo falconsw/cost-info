@@ -4,6 +4,7 @@ export type Totals = {
   turnBase: number
   last: number | null
   turns: number
+  turnsCost: number
   priciest: number
   warned: boolean
   tokens: number

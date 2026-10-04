@@ -17,6 +17,7 @@ const EMPTY: Totals = {
   turnBase: 0,
   last: null,
   turns: 0,
+  turnsCost: 0,
   priciest: 0,
   warned: false,
   tokens: 0,
@@ -130,6 +131,7 @@ export const register: Register = (on, options) => {
           turnBase: m.total,
           last,
           turns: m.turns + 1,
+          turnsCost: m.turnsCost + last,
           priciest: Math.max(m.priciest, last),
           isWorking: false,
         }
@@ -211,8 +213,10 @@ const spend = async (
     const total = usd ?? m.total
     const isOver = budget > 0 && total >= budget
     isCrossed = isOver && !m.warned
+    // A meter that starts mid-session (installed into it, a resumed session) counts turns from here.
+    const turnBase = value.session === startedAt ? Math.min(m.turnBase, total) : total
 
-    return then({ ...m, total, turnBase: Math.min(m.turnBase, total), warned: m.warned || isOver })
+    return then({ ...m, total, turnBase, warned: m.warned || isOver })
   })
   if (isCrossed) {
     await $.ui.toast(`Cost Info: this session passed your ${money(budget)} budget`)
@@ -231,7 +235,7 @@ const report = (m: Totals, budget: number): string => {
   }
   if (m.turns > 0) {
     lines.push(`  Turns         ${m.turns}`)
-    lines.push(`  Per turn      ${money(m.total / m.turns)} on average`)
+    lines.push(`  Per turn      ${money(m.turnsCost / m.turns)} on average`)
     lines.push(`  Priciest turn ${money(m.priciest)}`)
   }
   if (budget > 0) {
