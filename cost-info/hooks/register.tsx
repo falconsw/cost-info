@@ -42,8 +42,10 @@ type Piece = { text: string; isFigure?: boolean; color?: string }
 
 const money = (usd: number): string => `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`
 
-const tok = (n: number): string =>
-  n < 1000 ? `${n} tok` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k tok` : `${(n / 1_000_000).toFixed(2)}M tok`
+const count = (n: number): string =>
+  n < 1000 ? `${n}` : n < 999_500 ? `${(n / 1000).toFixed(n < 9_950 ? 1 : 0)}k` : `${(n / 1_000_000).toFixed(2)}M`
+
+const tok = (n: number): string => `${count(n)} tok`
 
 // A plan's rate-limit window, read from whatever shape the host reports it in. Plans that have
 // none (API billing) report an empty list, which is how the meter knows to show cost instead.
@@ -125,28 +127,30 @@ const limitsPieces = (limits: Limit[]): Piece[] => {
   ]
 }
 
+// Tokens used: the session's total, then the running or last turn's, as `104k / 70k tok`.
+const usageOf = (m: Totals, withLast: boolean): string =>
+  withLast && m.turnTokens > 0 ? `${count(m.tokens)} / ${count(m.turnTokens)} tok` : tok(m.tokens)
+
 // The session's cost and tokens behind its mark, and the budget where one is shown.
 // On a plan with rate limits the dollars mean nothing, so the limits' used share stands in for them.
-const sessionOf = (m: Totals, budget = 0): Piece[] => [
+const sessionOf = (m: Totals, budget = 0, withLast = false): Piece[] => [
   { text: '◉ ' },
   ...(m.limits.length > 0 ? limitsPieces(m.limits) : [{ text: money(m.total), isFigure: true }]),
-  ...(m.tokens > 0 ? [{ text: ' | ' }, { text: tok(m.tokens), isFigure: true }] : []),
+  ...(m.tokens > 0 ? [{ text: ' | ' }, { text: usageOf(m, withLast), isFigure: true }] : []),
   ...(budget > 0 && m.limits.length === 0 ? [{ text: ` of ${money(budget)} budget` }] : []),
 ]
 
-// The running turn while it works, the last one after; null before the first.
+// The running turn's cost while it works, the last turn's after; null before the first and on a
+// plan, where the dollars mean nothing and the turn's tokens already sit beside the session's.
 const turnOf = (m: Totals, withCount = false): Piece[] | null => {
   const cost = m.isWorking ? m.total - m.turnBase : m.last
-  if (cost === null) {
+  if (cost === null || m.limits.length > 0) {
     return null
   }
 
-  const isPlan = m.limits.length > 0
-
   return [
     { text: m.isWorking ? 'now ' : 'last ' },
-    ...(isPlan ? [] : [{ text: money(cost), isFigure: true }]),
-    ...(m.turnTokens > 0 ? [...(isPlan ? [] : [{ text: ' | ' }]), { text: tok(m.turnTokens), isFigure: true }] : []),
+    { text: money(cost), isFigure: true },
     ...(withCount && !m.isWorking ? [{ text: ` · ${m.turns} ${m.turns === 1 ? 'turn' : 'turns'}` }] : []),
   ]
 }
@@ -260,8 +264,9 @@ export const register: Register = (on, options) => {
     if (m.total === 0 && m.tokens === 0 && m.limits.length === 0) {
       return modes
     }
-    const turn = (e.viewport?.columns ?? WIDE) >= WIDE ? turnOf(m) : null
-    const pieces = turn === null ? sessionOf(m) : [...sessionOf(m), { text: ' | ' }, ...turn]
+    const isWide = (e.viewport?.columns ?? WIDE) >= WIDE
+    const turn = isWide ? turnOf(m) : null
+    const pieces = turn === null ? sessionOf(m, 0, isWide) : [...sessionOf(m, 0, true), { text: ' | ' }, ...turn]
     const kit = $.ui.resolve(e)
 
     return (
@@ -283,7 +288,7 @@ export const register: Register = (on, options) => {
 
     return (
       <kit.Box flexDirection="column" paddingX={1}>
-        {draw(kit, 'session', sessionOf(m, budget))}
+        {draw(kit, 'session', sessionOf(m, budget, true))}
         {turn !== null && draw(kit, 'turn', turn)}
       </kit.Box>
     )

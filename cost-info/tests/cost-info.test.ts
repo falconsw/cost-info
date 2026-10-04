@@ -223,20 +223,20 @@ describe('cost-info', () => {
 
     await $.turn.start({ text: 'hi', turnId: 't1' })
     await step($, { turnId: 't1', index: 0 })
-    expect(await shown(ui, 'meter')).toBe('◉ $0.0000 | 10k tok | now $0.0000 | 10k tok')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.0000 | 10k / 10k tok | now $0.0000')
 
     usd = 0.05
     await $.session.measure(measure(usd))
-    expect(await shown(ui, 'meter')).toBe('◉ $0.05 | 10k tok | now $0.05 | 10k tok')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.05 | 10k / 10k tok | now $0.05')
 
     await step($, { turnId: 't1', index: 0, agentId: 'helper' }) // a subagent's request counts too
     await step($, { turnId: 't1', index: 1 }) // a request with no response adds nothing
-    expect(await shown(ui, 'meter')).toBe('◉ $0.05 | 12k tok | now $0.05 | 12k tok')
-    expect((await ui.find({ type: 'Text', text: '12k tok' }))?.props.color).toBe('green')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.05 | 12k / 12k tok | now $0.05')
+    expect((await ui.find({ type: 'Text', text: '12k / 12k tok' }))?.props.color).toBe('green')
 
     usd = 0.08
     await $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1, turnId: 't1' } as any)
-    expect(await shown(ui, 'meter')).toBe('◉ $0.08 | 12k tok | last $0.08 | 12k tok')
+    expect(await shown(ui, 'meter')).toBe('◉ $0.08 | 12k / 12k tok | last $0.08')
 
     await $.turn.start({ text: 'more', turnId: 't2' })
     expect(await shown(ui, 'meter')).toBe('◉ $0.08 | 12k tok | now $0.0000')
