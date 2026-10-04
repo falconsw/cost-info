@@ -19,9 +19,15 @@ claude plugin marketplace add falconsw/cost-info
 claude plugin install cost-info@falconsw-mods
 ```
 
-Then start a new Claude Code session, in the terminal or in VS Code.
+Then load it into your open Claude Code session:
 
-To get a new version, run `claude plugin update cost-info@falconsw-mods` and start a new session. To remove it, run `claude plugin uninstall cost-info@falconsw-mods`.
+```
+/reload-plugins
+```
+
+Or start a new session, in the terminal or in VS Code.
+
+To get a new version, run `claude plugin update cost-info@falconsw-mods`, then `/reload-plugins`. To remove it, run `claude plugin uninstall cost-info@falconsw-mods`.
 
 ## Configure
 
