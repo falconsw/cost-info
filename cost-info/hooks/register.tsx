@@ -47,7 +47,12 @@ const tok = (n: number): string =>
 
 // A plan's rate-limit window, read from whatever shape the host reports it in. Plans that have
 // none (API billing) report an empty list, which is how the meter knows to show cost instead.
-const WINDOWS: Record<string, string> = { five_hour: '5h', seven_day: '7d', seven_day_opus: '7d Opus', seven_day_sonnet: '7d Sonnet' }
+const WINDOWS: Record<string, string> = {
+  five_hour: 'Session (5hr)',
+  seven_day: 'Weekly (7 day)',
+  seven_day_opus: 'Weekly Opus (7 day)',
+  seven_day_sonnet: 'Weekly Sonnet (7 day)',
+}
 
 const limitOf = (raw: unknown): Limit | null => {
   const r = raw as Record<string, unknown> | null
@@ -72,13 +77,20 @@ const limitOf = (raw: unknown): Limit | null => {
 
 const limitsOf = (raw: unknown): Limit[] => (Array.isArray(raw) ? raw.map(limitOf).filter((l): l is Limit => l !== null) : [])
 
+// Time until a window resets, in its largest units: 6d, 3h 20m, 45m. Empty when unknown or past.
 const left = (resetsAt: number | null, now = Date.now()): string => {
   if (resetsAt === null || resetsAt <= now) {
     return ''
   }
   const min = Math.ceil((resetsAt - now) / 60_000)
+  if (min >= 1440) {
+    const days = Math.floor(min / 1440)
+    const hours = Math.floor((min % 1440) / 60)
 
-  return min >= 60 ? ` (resets in ${Math.floor(min / 60)}h ${min % 60}m)` : ` (resets in ${min}m)`
+    return days >= 2 || hours === 0 ? `${days}d` : `${days}d ${hours}h`
+  }
+
+  return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`
 }
 
 const tokensOf = (u: ModelUsage): number =>
@@ -86,15 +98,19 @@ const tokensOf = (u: ModelUsage): number =>
 
 // The session's cost and tokens behind its mark, and the budget where one is shown.
 // On a plan with rate limits the dollars mean nothing, so the limits' used share stands in for them.
-const sessionOf = (m: Totals, budget = 0, withReset = false): Piece[] => [
+const sessionOf = (m: Totals, budget = 0): Piece[] => [
   { text: '◉ ' },
   ...(m.limits.length > 0
-    ? m.limits.flatMap((l, i): Piece[] => [
-        ...(i > 0 ? [{ text: ' · ' }] : []),
-        { text: `${l.label} ` },
-        { text: `${l.percent}%`, isFigure: true },
-        ...(withReset ? [{ text: left(l.resetsAt) }] : []),
-      ])
+    ? m.limits.flatMap((l, i): Piece[] => {
+        const reset = left(l.resetsAt)
+
+        return [
+          ...(i > 0 ? [{ text: ' | ' }] : []),
+          { text: `${l.label} ` },
+          { text: `%${l.percent}`, isFigure: true },
+          ...(reset === '' ? [] : [{ text: ` (reset ${reset})` }]),
+        ]
+      })
     : [{ text: money(m.total), isFigure: true }]),
   ...(m.tokens > 0 ? [{ text: ' · ' }, { text: tok(m.tokens), isFigure: true }] : []),
   ...(budget > 0 && m.limits.length === 0 ? [{ text: ` of ${money(budget)} budget` }] : []),
@@ -243,7 +259,7 @@ export const register: Register = (on, options) => {
 
     return (
       <kit.Box flexDirection="column" paddingX={1}>
-        {draw(kit, 'session', sessionOf(m, budget, true))}
+        {draw(kit, 'session', sessionOf(m, budget))}
         {turn !== null && draw(kit, 'turn', turn)}
       </kit.Box>
     )
@@ -289,9 +305,9 @@ const report = (m: Totals, budget: number): string => {
   if (m.limits.length > 0) {
     return [
       'Plan usage:',
-      ...m.limits.map(l => `  ${l.label.padEnd(8)} ${l.percent}% used${left(l.resetsAt)}`),
-      ...(m.tokens > 0 ? [`  Tokens   ${tok(m.tokens)} this session`] : []),
-      ...(m.turns > 0 ? [`  Turns    ${m.turns}`] : []),
+      ...m.limits.map(l => `  ${l.label.padEnd(21)} %${l.percent} used${left(l.resetsAt) === '' ? '' : ` (reset ${left(l.resetsAt)})`}`),
+      ...(m.tokens > 0 ? [`  Tokens                ${tok(m.tokens)} this session`] : []),
+      ...(m.turns > 0 ? [`  Turns                 ${m.turns}`] : []),
     ].join('\n')
   }
   const lines = [`This session: ${money(m.total)}`]
