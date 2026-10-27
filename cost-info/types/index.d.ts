@@ -13,6 +13,7 @@ export type Totals = {
   turnTokens: number
   isWorking: boolean
   limits: Limit[]
+  minimax: Limit[]
 }
 
 declare module 'claude-code' {

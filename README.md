@@ -12,6 +12,10 @@ A Claude Code mod that shows what your session has cost so far, and the tokens i
 
 On a Pro or Max plan the dollars aren't what you're billed, so when Claude Code reports rate limits the meter shows how much of each is used instead: `◉ 5h ━─── 15%  wk ━─── 7%  Resets in 3h 55m | Token Usage 104k / 70k`: a thin gauge for the 5-hour and weekly windows, and the time until the sooner one resets. It reads what Claude Code already receives, so it costs nothing extra. Without rate limits (API billing) it shows cost as before. Tokens count from when the mod loaded into the session, so a resumed session's earlier tokens aren't in the total.
 
+## MiniMax
+
+On **MiniMax M Plan** Claude Code reports no rate limits of its own, so the meter reads the plan's windows from MiniMax instead, and draws them the same way: `◉ 5h ━─── 23%  wk ━─── 3%  Resets in 4h 16m`. It asks MiniMax's `coding_plan/remains` for the share left in the 5-hour and the weekly window, with the key the session already authenticates with, and reads them again every minute and after every turn. Nothing to configure: a session whose `ANTHROPIC_BASE_URL` points at MiniMax is found on its own, and any other provider is left alone.
+
 ## Install
 
 Requires Claude Code 2.1.288 or later. Run these in a shell, not inside a Claude Code session:
@@ -55,4 +59,4 @@ claude plugin test ./cost-info
 claude --plugin-dir ./cost-info   # reloads as you save
 ```
 
-A mod runs inside Claude Code with the same access Claude Code has. Read the source before you install it: it's one file, [`cost-info/hooks/register.tsx`](cost-info/hooks/register.tsx).
+A mod runs inside Claude Code with the same access Claude Code has. Read the source before you install it: it's two files, [`cost-info/hooks/register.tsx`](cost-info/hooks/register.tsx) and [`cost-info/hooks/minimax.ts`](cost-info/hooks/minimax.ts).

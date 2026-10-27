@@ -7,8 +7,9 @@
 // subagents included, counted from when the mod loaded into the session.
 
 import { atom, read, update } from 'claude-code'
-import type { BoxProps, ElementConstructor, EngineInterface, ModelUsage, Register, TextProps } from 'claude-code'
+import type { BoxProps, ElementConstructor, EngineInterface, ModelUsage, Register, TextProps, Timer } from 'claude-code'
 
+import { limitsOf as minimaxLimitsOf, minimaxOrigin, PATH as MINIMAX_PATH } from './minimax'
 import type { Limit, Totals } from '../types'
 
 const EMPTY: Totals = {
@@ -24,6 +25,7 @@ const EMPTY: Totals = {
   turnTokens: 0,
   isWorking: false,
   limits: [],
+  minimax: [],
 }
 // Held by the host, so the totals survive a hot reload of this file.
 const meter = atom({ plugin: 'cost-info', key: 'meter' } as const, EMPTY)
@@ -34,6 +36,8 @@ const COMMAND = 'spend'
 const NOTHING = 'Nothing spent yet this session.'
 // Below this many columns the footer leaves the turn out.
 const WIDE = 120
+// How often the plan's own windows are read again.
+const POLL_MS = 60_000
 
 type Kit = { Box: ElementConstructor<BoxProps>; Text: ElementConstructor<TextProps> }
 
@@ -127,6 +131,14 @@ const limitsPieces = (limits: Limit[]): Piece[] => {
   ]
 }
 
+// The plan's windows: the ones Claude Code reports, or MiniMax's when the session
+// talks to MiniMax, which reports none.
+const planLimits = (m: Totals): Limit[] => (m.limits.length > 0 ? m.limits : m.minimax)
+
+// Which plan the windows belong to.
+const planOf = (m: Totals): string | null =>
+  m.limits.length > 0 ? "Claude's plan" : m.minimax.length > 0 ? 'MiniMax M Plan' : null
+
 // Tokens used: the session's total, then the running or last turn's, as `Token Usage 104k / 70k`.
 const usageOf = (m: Totals, withLast: boolean): string =>
   `Token Usage ${count(m.tokens)}${withLast && m.turnTokens > 0 ? ` / ${count(m.turnTokens)}` : ''}`
@@ -135,16 +147,16 @@ const usageOf = (m: Totals, withLast: boolean): string =>
 // On a plan with rate limits the dollars mean nothing, so the limits' used share stands in for them.
 const sessionOf = (m: Totals, budget = 0, withLast = false): Piece[] => [
   { text: '◉ ' },
-  ...(m.limits.length > 0 ? limitsPieces(m.limits) : [{ text: money(m.total), isFigure: true }]),
+  ...(planLimits(m).length > 0 ? limitsPieces(planLimits(m)) : [{ text: money(m.total), isFigure: true }]),
   ...(m.tokens > 0 ? [{ text: ' | ' }, { text: usageOf(m, withLast), isFigure: true }] : []),
-  ...(budget > 0 && m.limits.length === 0 ? [{ text: ` of ${money(budget)} budget` }] : []),
+  ...(budget > 0 && planLimits(m).length === 0 ? [{ text: ` of ${money(budget)} budget` }] : []),
 ]
 
 // The running turn's cost while it works, the last turn's after; null before the first and on a
 // plan, where the dollars mean nothing and the turn's tokens already sit beside the session's.
 const turnOf = (m: Totals, withCount = false): Piece[] | null => {
   const cost = m.isWorking ? m.total - m.turnBase : m.last
-  if (cost === null || m.limits.length > 0) {
+  if (cost === null || planLimits(m).length > 0) {
     return null
   }
 
@@ -167,14 +179,45 @@ const draw = ({ Box, Text }: Kit, key: string, pieces: Piece[]) => (
   </Box>
 )
 
+// Reads MiniMax's windows, keeping the last ones when the endpoint says nothing.
+const refresh = async ($: EngineInterface): Promise<void> => {
+  let limits: Limit[] | null = null
+  try {
+    const origin = minimaxOrigin(await $.env.get("ANTHROPIC_BASE_URL"))
+    const key = (await $.env.get("ANTHROPIC_AUTH_TOKEN")) ?? (await $.env.get("ANTHROPIC_API_KEY"))
+    if (origin !== null && key !== undefined) {
+      const response = await $.http.fetch(`${origin}${MINIMAX_PATH}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+      })
+      if (response.ok) {
+        limits = minimaxLimitsOf(response.text, await $.clock.now())
+      }
+    }
+  } catch {
+    limits = null
+  }
+  if (limits === null) {
+    return
+  }
+  await update($, meter, m => ({ ...m, minimax: limits! }))
+}
+
 export const register: Register = (on, options) => {
   const budget = typeof options.budget === 'number' ? options.budget : 0
+  // The plan's own windows, read from MiniMax when the session talks to MiniMax.
+  let poll: Timer | undefined
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
     const { startedAt, cost, rateLimits } = await $.session.usage()
     await spend($, startedAt, cost?.usd, budget, undefined, limitsOf(rateLimits)) // a new session starts from zero, a reload keeps its totals
     await $.command.register({ name: COMMAND, description: 'Show what this session has cost, turn by turn' })
+    await refresh($)
+    poll?.cancel()
+    poll = $.clock.every(POLL_MS, () => {
+      void refresh($)
+    })
 
     return result
   })
@@ -229,9 +272,17 @@ export const register: Register = (on, options) => {
           isWorking: false,
         }
       }, limitsOf(rateLimits))
+      void refresh($) // the plan's windows moved with this turn
     }
 
     return result
+  })
+
+  on('session.end', async ($, e, next) => {
+    poll?.cancel()
+    poll = undefined
+
+    return next(e)
   })
 
   on('session.attach', { surface: 'vscode' }, async ($, e, next) => {
@@ -248,7 +299,7 @@ export const register: Register = (on, options) => {
     }
 
     const text = report(m, budget)
-    if (m.limits.length > 0) {
+    if (planLimits(m).length > 0) {
       return { text }
     }
     // No limits parsed: show what the host reports, unparsed, to find out why.
@@ -261,7 +312,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'SessionMode' }, async ($, e, next) => {
     const modes = await next(e)
     const m = await read($, meter)
-    if (m.total === 0 && m.tokens === 0 && m.limits.length === 0) {
+    if (m.total === 0 && m.tokens === 0 && planLimits(m).length === 0) {
       return modes
     }
     const isWide = (e.viewport?.columns ?? WIDE) >= WIDE
@@ -281,7 +332,7 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const m = await read($, meter)
     const kit = $.ui.resolve(e)
-    if (m.total === 0 && m.limits.length === 0) {
+    if (m.total === 0 && planLimits(m).length === 0) {
       return <kit.Text>{NOTHING}</kit.Text>
     }
     const turn = turnOf(m, true)
@@ -313,7 +364,7 @@ const spend = async (
   const m = await update($, meter, value => {
     const m = fresh(value, startedAt)
     const total = usd ?? m.total
-    const isOver = budget > 0 && total >= budget && (limits ?? m.limits).length === 0
+    const isOver = budget > 0 && total >= budget && (limits ?? m.limits).length === 0 && m.minimax.length === 0
     isCrossed = isOver && !m.warned
     // A meter that starts mid-session (installed into it, a resumed session) counts turns from here.
     const turnBase = value.session === startedAt ? Math.min(m.turnBase, total) : total
@@ -328,13 +379,14 @@ const spend = async (
 }
 
 const report = (m: Totals, budget: number): string => {
-  if (m.total === 0 && m.limits.length === 0) {
+  const limits = planLimits(m)
+  if (m.total === 0 && limits.length === 0) {
     return NOTHING
   }
-  if (m.limits.length > 0) {
+  if (limits.length > 0) {
     return [
-      'Plan usage:',
-      ...m.limits.map(l => `  ${l.label.padEnd(10)} ${l.percent}% used${left(l.resetsAt) === '' ? '' : ` (resets in ${left(l.resetsAt)})`}`),
+      `${planOf(m) ?? 'Plan'} usage:`,
+      ...limits.map(l => `  ${l.label.padEnd(10)} ${l.percent}% used${left(l.resetsAt) === '' ? '' : ` (resets in ${left(l.resetsAt)})`}`),
       ...(m.tokens > 0 ? [`  Tokens     ${tok(m.tokens)} this session`] : []),
       ...(m.turns > 0 ? [`  Turns      ${m.turns}`] : []),
     ].join('\n')

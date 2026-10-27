@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 import type { ModelUsage, On } from 'claude-code'
 
 const usage = (usd: number) => ({
@@ -265,6 +265,56 @@ describe('cost-info', () => {
     expect(run.text).toContain('5h')
     expect(run.text).toContain('37% used (resets in 3h')
     expect(run.text).not.toContain('$')
+    await ui.unmount()
+  })
+
+  test('on MiniMax the footer shows the plan windows MiniMax answers', async ($, on) => {
+    const now = Date.now()
+
+    engine(on)
+    mock.clock(on, { now })
+    mock.env(on, { ANTHROPIC_BASE_URL: 'https://api.minimax.io/anthropic', ANTHROPIC_AUTH_TOKEN: 'sk-cp-test' })
+    on('session.usage', () => usage(0))
+    on('session.surfaces', () => ({ value: ['terminal'] }))
+    on('http.fetch', ($, e) => ({
+      value: {
+        status: 200,
+        ok: true,
+        headers: {},
+        text: JSON.stringify({
+          model_remains: [
+            {
+              model_name: 'general',
+              current_interval_remaining_percent: 84, // the share left of the 5-hour window
+              current_weekly_remaining_percent: 98,
+              remains_time: 3 * 3600 * 1000,
+              weekly_remains_time: 6 * 86400 * 1000,
+            },
+          ],
+        }),
+      },
+    }))
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
+    expect(await shown(ui, 'meter')).toBe('◉ 5h ━─── 16%  wk ━─── 2%  Resets in 3h 0m')
+
+    const run = await $.command.run({ command: 'spend', args: '' } as any)
+    expect(run.text).toContain('MiniMax M Plan usage:')
+    expect(run.text).toContain('5h         16% used (resets in 3h 0m)')
+    expect(run.text).toContain('wk         2% used (resets in 6d)')
+    await ui.unmount()
+  })
+
+  test('on another provider the footer shows the cost, as before', async ($, on) => {
+    engine(on)
+    mock.env(on, { ANTHROPIC_BASE_URL: 'https://api.anthropic.com', ANTHROPIC_AUTH_TOKEN: 'sk-ant-test' })
+    on('session.usage', () => usage(0.12))
+    on('session.surfaces', () => ({ value: ['terminal'] }))
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
+    expect(await shown(ui, 'meter')).toBe('◉ $0.12')
     await ui.unmount()
   })
 })
