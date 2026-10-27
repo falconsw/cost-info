@@ -2,6 +2,8 @@
 
 A Claude Code mod that shows what your session has cost so far, and the tokens it took, live.
 
+Video and walkthrough (Turkish): [Claude Code limit ve token takibi on SkillHane](https://skillhane.vercel.app/video/claude-code-limit-ve-token-takibi)
+
 ![Cost Info at the right of the line under the Claude Code prompt: ◉ 5h ━─── 15%  wk ━─── 7%  Resets in 3h 55m | Token Usage 104k / 70k](docs/screenshot.svg)
 
 - **Under the prompt.** `◉ $0.16 | Token Usage 142k / 30k | now $0.02` at the right of the line under the prompt, the figures in green, live, mid-turn too; once the turn ends `now` becomes `last`. A narrow terminal (under 120 columns) shows the session alone. The cost is the same figure `/cost` shows, subagents included.
