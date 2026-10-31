@@ -306,6 +306,50 @@ describe('cost-info', () => {
     await ui.unmount()
   })
 
+  test('on Z.ai the footer shows the GLM Coding Plan windows Z.ai answers', async ($, on) => {
+    const now = Date.now()
+    let asked = ''
+
+    engine(on)
+    mock.clock(on, { now })
+    mock.env(on, { ANTHROPIC_BASE_URL: 'https://api.z.ai/api/anthropic', ANTHROPIC_AUTH_TOKEN: 'glm-test' })
+    on('session.usage', () => usage(0))
+    on('session.surfaces', () => ({ value: ['terminal'] }))
+    on('http.fetch', ($, e) => {
+      asked = e.url
+
+      return {
+        value: {
+          status: 200,
+          ok: true,
+          headers: {},
+          text: JSON.stringify({
+            code: 200,
+            data: {
+              level: 'lite',
+              limits: [
+                { type: 'CREDIT_LIMIT', unit: 3, number: 5, percentage: 23, nextResetTime: now + 3 * 3600 * 1000 },
+                { type: 'CREDIT_LIMIT', unit: 6, number: 1, percentage: 4, nextResetTime: now + 6 * 86400 * 1000 },
+                { type: 'TIME_LIMIT', unit: 5, number: 1, percentage: 50 }, // MCP tool calls, not shown
+              ],
+            },
+          }),
+        },
+      }
+    })
+
+    await $.session.start({ cwd: '/work', surface: 'terminal', isInteractive: true })
+    expect(asked).toBe('https://api.z.ai/api/monitor/usage/quota/limit')
+    const ui = await $.ui.mount({ ...FOOTER, surface: 'terminal' } as any)
+    expect(await shown(ui, 'meter')).toBe('◉ 5h ━─── 23%  wk ━─── 4%  Resets in 3h 0m')
+
+    const run = await $.command.run({ command: 'spend', args: '' } as any)
+    expect(run.text).toContain('GLM Coding Lite usage:')
+    expect(run.text).toContain('5h         23% used (resets in 3h 0m)')
+    expect(run.text).toContain('wk         4% used (resets in 6d)')
+    await ui.unmount()
+  })
+
   test('on another provider the footer shows the cost, as before', async ($, on) => {
     engine(on)
     mock.env(on, { ANTHROPIC_BASE_URL: 'https://api.anthropic.com', ANTHROPIC_AUTH_TOKEN: 'sk-ant-test' })

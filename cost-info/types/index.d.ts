@@ -13,7 +13,9 @@ export type Totals = {
   turnTokens: number
   isWorking: boolean
   limits: Limit[]
-  minimax: Limit[]
+  // The windows of a plan read from its provider (MiniMax, Z.ai), and the plan's name.
+  provider: Limit[]
+  plan: string | null
 }
 
 declare module 'claude-code' {

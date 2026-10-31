@@ -9,6 +9,7 @@
 import { atom, read, update } from 'claude-code'
 import type { BoxProps, ElementConstructor, EngineInterface, ModelUsage, Register, TextProps, Timer } from 'claude-code'
 
+import { glmOrigin, limitsOf as glmLimitsOf, PATH as GLM_PATH, planOf as glmPlanOf } from './glm'
 import { limitsOf as minimaxLimitsOf, minimaxOrigin, PATH as MINIMAX_PATH } from './minimax'
 import type { Limit, Totals } from '../types'
 
@@ -25,7 +26,8 @@ const EMPTY: Totals = {
   turnTokens: 0,
   isWorking: false,
   limits: [],
-  minimax: [],
+  provider: [],
+  plan: null,
 }
 // Held by the host, so the totals survive a hot reload of this file.
 const meter = atom({ plugin: 'cost-info', key: 'meter' } as const, EMPTY)
@@ -131,13 +133,13 @@ const limitsPieces = (limits: Limit[]): Piece[] => {
   ]
 }
 
-// The plan's windows: the ones Claude Code reports, or MiniMax's when the session
-// talks to MiniMax, which reports none.
-const planLimits = (m: Totals): Limit[] => (m.limits.length > 0 ? m.limits : m.minimax)
+// The plan's windows: the ones Claude Code reports, or the provider's when the
+// session talks to MiniMax or Z.ai, which report none to Claude Code.
+const planLimits = (m: Totals): Limit[] => (m.limits.length > 0 ? m.limits : m.provider)
 
 // Which plan the windows belong to.
 const planOf = (m: Totals): string | null =>
-  m.limits.length > 0 ? "Claude's plan" : m.minimax.length > 0 ? 'MiniMax M Plan' : null
+  m.limits.length > 0 ? "Claude's plan" : m.provider.length > 0 ? m.plan : null
 
 // Tokens used: the session's total, then the running or last turn's, as `Token Usage 104k / 70k`.
 const usageOf = (m: Totals, withLast: boolean): string =>
@@ -179,19 +181,28 @@ const draw = ({ Box, Text }: Kit, key: string, pieces: Piece[]) => (
   </Box>
 )
 
-// Reads MiniMax's windows, keeping the last ones when the endpoint says nothing.
+// Reads the provider's windows (MiniMax's or Z.ai's), keeping the last ones when
+// the endpoint says nothing.
 const refresh = async ($: EngineInterface): Promise<void> => {
   let limits: Limit[] | null = null
+  let plan = ''
   try {
-    const origin = minimaxOrigin(await $.env.get("ANTHROPIC_BASE_URL"))
+    const base = await $.env.get("ANTHROPIC_BASE_URL")
     const key = (await $.env.get("ANTHROPIC_AUTH_TOKEN")) ?? (await $.env.get("ANTHROPIC_API_KEY"))
-    if (origin !== null && key !== undefined) {
-      const response = await $.http.fetch(`${origin}${MINIMAX_PATH}`, {
+    const minimax = minimaxOrigin(base)
+    const glm = glmOrigin(base)
+    const url = minimax !== null ? `${minimax}${MINIMAX_PATH}` : glm !== null ? `${glm}${GLM_PATH}` : null
+    if (url !== null && key !== undefined) {
+      const response = await $.http.fetch(url, {
         method: 'GET',
         headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
       })
-      if (response.ok) {
+      if (response.ok && minimax !== null) {
         limits = minimaxLimitsOf(response.text, await $.clock.now())
+        plan = 'MiniMax M Plan'
+      } else if (response.ok) {
+        limits = glmLimitsOf(response.text)
+        plan = glmPlanOf(response.text)
       }
     }
   } catch {
@@ -200,12 +211,12 @@ const refresh = async ($: EngineInterface): Promise<void> => {
   if (limits === null) {
     return
   }
-  await update($, meter, m => ({ ...m, minimax: limits! }))
+  await update($, meter, m => ({ ...m, provider: limits!, plan }))
 }
 
 export const register: Register = (on, options) => {
   const budget = typeof options.budget === 'number' ? options.budget : 0
-  // The plan's own windows, read from MiniMax when the session talks to MiniMax.
+  // The plan's own windows, read from MiniMax or Z.ai when the session talks to one of them.
   let poll: Timer | undefined
 
   on('session.start', async ($, e, next) => {
@@ -364,7 +375,7 @@ const spend = async (
   const m = await update($, meter, value => {
     const m = fresh(value, startedAt)
     const total = usd ?? m.total
-    const isOver = budget > 0 && total >= budget && (limits ?? m.limits).length === 0 && m.minimax.length === 0
+    const isOver = budget > 0 && total >= budget && (limits ?? m.limits).length === 0 && m.provider.length === 0
     isCrossed = isOver && !m.warned
     // A meter that starts mid-session (installed into it, a resumed session) counts turns from here.
     const turnBase = value.session === startedAt ? Math.min(m.turnBase, total) : total
